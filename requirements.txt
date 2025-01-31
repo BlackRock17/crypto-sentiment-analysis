@@ -1,0 +1,22 @@
+# API & Web
+tweepy
+fastapi
+uvicorn
+
+# Data Processing
+pandas
+numpy
+
+# NLP & Analysis
+nltk
+textblob
+
+# Database
+sqlalchemy
+psycopg2-binary
+
+# Testing
+pytest
+
+# Utilities
+python-dotenv
