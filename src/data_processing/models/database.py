@@ -39,3 +39,15 @@ class SentimentAnalysis(Base):
 
     # Tweet Relation
     tweet = relationship("Tweet", back_populates="sentiment_analysis")
+
+class SolanaToken(Base):
+    __tablename__ = "solana_tokens"
+
+    id = Column(Integer, primary_key=True)
+    token_address = Column(String(44), unique=True, nullable=False)  # Solana addresses are 44 characters long
+    symbol = Column(String(20), nullable=False)
+    name = Column(String(100))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship to mentions
+    mentions = relationship("TokenMention", back_populates="token")
