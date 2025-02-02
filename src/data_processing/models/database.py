@@ -51,3 +51,15 @@ class SolanaToken(Base):
 
     # Relationship to mentions
     mentions = relationship("TokenMention", back_populates="token")
+
+
+class TokenMention(Base):
+    __tablename__ = "token_mentions"
+
+    id = Column(Integer, primary_key=True)
+    tweet_id = Column(Integer, ForeignKey("tweets.id"), nullable=False)
+    token_id = Column(Integer, ForeignKey("solana_tokens.id"), nullable=False)
+    mentioned_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relation
+    token = relationship("SolanaToken", back_populates="mentions")
