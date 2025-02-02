@@ -26,3 +26,16 @@ class Tweet(Base):
 
     # Relation to analysis
     sentiment_analysis = relationship("SentimentAnalysis", back_populates="tweet", uselist=False)
+
+
+class SentimentAnalysis(Base):
+    __tablename__ = "sentiment_analysis"
+
+    id = Column(Integer, primary_key=True)
+    tweet_id = Column(Integer, ForeignKey("tweets.id"), unique=True, nullable=False)
+    sentiment = Column(Enum(SentimentEnum), nullable=False)
+    confidence_score = Column(Float, nullable=False)
+    analyzed_at = Column(DateTime, default=datetime.utcnow)
+
+    # Tweet Relation
+    tweet = relationship("Tweet", back_populates="sentiment_analysis")
