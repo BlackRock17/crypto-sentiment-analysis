@@ -9,3 +9,20 @@ class SentimentEnum(enum.Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative"
     NEUTRAL = "neutral"
+
+
+class Tweet(Base):
+    __tablename__ = "tweets"
+
+    id = Column(Integer, primary_key=True)
+    tweet_id = Column(String(50), unique=True, nullable=False)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    author_id = Column(String(50), nullable=False)
+    author_username = Column(String(100))
+    retweet_count = Column(Integer, default=0)
+    like_count = Column(Integer, default=0)
+    collected_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relation to analysis
+    sentiment_analysis = relationship("SentimentAnalysis", back_populates="tweet", uselist=False)
