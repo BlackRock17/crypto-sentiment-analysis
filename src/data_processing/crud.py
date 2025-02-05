@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from src.data_processing.models.database import SolanaToken, Tweet, SentimentEnum, SentimentAnalysis
+from src.data_processing.models.database import SolanaToken, Tweet, SentimentEnum, SentimentAnalysis, TokenMention
 from datetime import datetime
 
 
@@ -93,3 +93,31 @@ def create_sentiment_analysis(
     db.refresh(db_sentiment)
 
     return db_sentiment
+
+
+def create_token_mention(
+        db: Session,
+        tweet_id: int,
+        token_id: int
+) -> TokenMention:
+    """
+    Creates a link between tweet and token
+
+    Args:
+        db: Database session
+        tweet_id: ID of the tweet from the base
+        token_id: ID of the token from the base
+
+    Returns:
+        TokenMention record created
+    """
+    db_mention = TokenMention(
+        tweet_id=tweet_id,
+        token_id=token_id
+    )
+
+    db.add(db_mention)
+    db.commit()
+    db.refresh(db_mention)
+
+    return db_mention
