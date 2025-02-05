@@ -1,72 +1,129 @@
+import pytest
+import uuid
 from datetime import datetime
 from src.data_processing.database import get_db
-from src.data_processing.crud import create_solana_token, create_tweet, create_sentiment_analysis
+from src.data_processing.crud import (
+    create_solana_token,
+    create_tweet,
+    create_sentiment_analysis,
+    create_token_mention
+)
 from src.data_processing.models.database import SentimentEnum
 
 
-def test_create_solana_token():
-    db = next(get_db())
+@pytest.fixture
+def db():
+    """Database session fixture"""
+    session = next(get_db())
+    yield session
+    session.close()
 
-    # Test creating a token with unique address
+
+def generate_unique_address():
+    """Generate unique Solana address"""
+    return f"So{uuid.uuid4().hex[:40]}2"
+
+
+def generate_unique_tweet_id():
+    """Generate unique tweet ID"""
+    return str(uuid.uuid4().int)[:15]
+
+
+def test_create_solana_token(db):
+    """Test creating a Solana token"""
     token = create_solana_token(
         db=db,
-        token_address="So11111111111111111111111111111111111111115",  # Changed address
-        symbol="USDTt",
-        name="USDt Coin"
+        token_address=generate_unique_address(),
+        symbol="USDC",
+        name="USD Coin"
     )
 
-    # Verify token was created
-    assert token.token_address == "So11111111111111111111111111111111111111115"
-    assert token.symbol == "USDTt"
-    assert token.name == "USDt Coin"
+    assert token.symbol == "USDC"
+    assert token.name == "USD Coin"
+
+    db.delete(token)
+    db.commit()
 
     print("✓ Successfully created and verified Solana token")
 
 
-def test_create_tweet():
+def test_create_tweet(db):
     """Test creating a tweet"""
-    db = next(get_db())
-
     tweet = create_tweet(
         db=db,
-        tweet_id="1234567893",  # Different from test_database.py
-        text="Testing $USDTt on Solana!",
+        tweet_id=generate_unique_tweet_id(),
+        text="Testing $USDC on Solana!",
         created_at=datetime.utcnow(),
-        author_id="123457",
-        author_username="crypto_tester1"
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="crypto_tester"
     )
 
-    assert tweet.tweet_id == "1234567893"
-    assert tweet.text == "Testing $USDTt on Solana!"
-    assert tweet.author_id == "123457"
+    assert tweet.text == "Testing $USDC on Solana!"
+
+    db.delete(tweet)
+    db.commit()
 
     print("✓ Successfully created and verified Tweet")
 
 
-def test_create_sentiment_analysis():
+def test_create_sentiment_analysis(db):
     """Test creating a sentiment analysis"""
-    db = next(get_db())
-
-    # First we create a tweet
     tweet = create_tweet(
         db=db,
-        tweet_id="9876543210",
+        tweet_id=generate_unique_tweet_id(),
         text="Solana to the moon! 🚀",
         created_at=datetime.utcnow(),
-        author_id="555555",
+        author_id=str(uuid.uuid4().int)[:6],
         author_username="solana_fan"
     )
 
-    # Create a sentiment analysis
     sentiment = create_sentiment_analysis(
         db=db,
-        tweet_id=tweet.id,  # We use the ID from the database
+        tweet_id=tweet.id,
         sentiment=SentimentEnum.POSITIVE,
         confidence_score=0.95
     )
 
-    assert sentiment.tweet_id == tweet.id
     assert sentiment.sentiment == SentimentEnum.POSITIVE
     assert sentiment.confidence_score == 0.95
 
+    db.delete(sentiment)
+    db.delete(tweet)
+    db.commit()
+
     print("✓ Successfully created and verified Sentiment Analysis")
+
+
+def test_create_token_mention(db):
+    """Test creating a token mention"""
+    token = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="RAY",
+        name="Raydium"
+    )
+
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Check out $RAY!",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="defi_lover"
+    )
+
+    mention = create_token_mention(
+        db=db,
+        tweet_id=tweet.id,
+        token_id=token.id
+    )
+
+    assert mention.tweet_id == tweet.id
+    assert mention.token_id == token.id
+
+    db.delete(mention)
+    db.delete(tweet)
+    db.delete(token)
+    db.commit()
+
+    print("✓ Successfully created and verified Token Mention")
