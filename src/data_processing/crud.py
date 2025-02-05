@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from src.data_processing.models.database import SolanaToken
+from src.data_processing.models.database import SolanaToken, Tweet
 from datetime import datetime
 
 
@@ -28,3 +28,33 @@ def create_solana_token(db: Session, token_address: str, symbol: str, name: str 
     db.refresh(db_token)
 
     return db_token
+
+
+def create_tweet(
+        db: Session,
+        tweet_id: str,
+        text: str,
+        created_at: datetime,
+        author_id: str,
+        author_username: str = None,
+        retweet_count: int = 0,
+        like_count: int = 0
+) -> Tweet:
+    """
+    Create a new tweet record
+    """
+    db_tweet = Tweet(
+        tweet_id=tweet_id,
+        text=text,
+        created_at=created_at,
+        author_id=author_id,
+        author_username=author_username,
+        retweet_count=retweet_count,
+        like_count=like_count
+    )
+
+    db.add(db_tweet)
+    db.commit()
+    db.refresh(db_tweet)
+
+    return db_tweet
