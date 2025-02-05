@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from src.data_processing.models.database import SolanaToken, Tweet
+from src.data_processing.models.database import SolanaToken, Tweet, SentimentEnum, SentimentAnalysis
 from datetime import datetime
 
 
@@ -58,3 +58,38 @@ def create_tweet(
     db.refresh(db_tweet)
 
     return db_tweet
+
+
+def create_sentiment_analysis(
+        db: Session,
+        tweet_id: int,
+        sentiment: SentimentEnum,
+        confidence_score: float
+) -> SentimentAnalysis:
+    """
+    Create a new sentiment analysis record
+
+    Args:
+        db: Database session
+        tweet_id: ID на tweet-а от базата данни (не Twitter ID)
+        sentiment: POSITIVE, NEGATIVE, или NEUTRAL
+        confidence_score: Число между 0 и 1, показващо увереността в анализа
+
+    Returns:
+        Създаден SentimentAnalysis запис
+    """
+    # check if the score is a valid number between 0 and 1
+    if not 0 <= confidence_score <= 1:
+        raise ValueError("Confidence score must be between 0 and 1")
+
+    db_sentiment = SentimentAnalysis(
+        tweet_id=tweet_id,
+        sentiment=sentiment,
+        confidence_score=confidence_score
+    )
+
+    db.add(db_sentiment)
+    db.commit()
+    db.refresh(db_sentiment)
+
+    return db_sentiment
