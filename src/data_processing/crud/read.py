@@ -104,3 +104,54 @@ def get_tweet_by_twitter_id(db: Session, twitter_id: str) -> Tweet:
         Tweet instance or None if not found
     """
     return db.query(Tweet).filter(Tweet.tweet_id == twitter_id).first()
+
+
+def get_tweets(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        author_username: str = None,
+        sentiment: SentimentEnum = None,
+        token_symbol: str = None,
+        date_from: datetime = None,
+        date_to: datetime = None
+) -> list[Tweet]:
+    """
+    Get tweets with optional filtering and pagination
+
+    Args:
+        db: Database session
+        skip: Number of records to skip (for pagination)
+        limit: Maximum number of records to return
+        author_username: Filter by author username (partial match)
+        sentiment: Filter by sentiment analysis result
+        token_symbol: Filter by mentioned token symbol
+        date_from: Filter tweets created after this date
+        date_to: Filter tweets created before this date
+
+    Returns:
+        List of Tweet instances
+    """
+    query = db.query(Tweet).distinct()
+
+    # Filter by author username
+    if author_username:
+        query = query.filter(Tweet.author_username.ilike(f"%{author_username}%"))
+
+    # Filter by sentiment
+    if sentiment:
+        query = query.join(SentimentAnalysis).filter(SentimentAnalysis.sentiment == sentiment)
+
+    # Filter by token mention
+    if token_symbol:
+        query = query.join(TokenMention).join(SolanaToken).filter(SolanaToken.symbol.ilike(f"%{token_symbol}%"))
+
+    # Filter by date range
+    if date_from:
+        query = query.filter(Tweet.created_at >= date_from)
+
+    if date_to:
+        query = query.filter(Tweet.created_at <= date_to)
+
+    # Apply pagination and return results
+    return query.offset(skip).limit(limit).all()
