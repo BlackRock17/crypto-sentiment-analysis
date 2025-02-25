@@ -76,3 +76,17 @@ def get_all_solana_tokens(
 
     # Apply pagination and return results
     return query.offset(skip).limit(limit).all()
+
+
+def get_tweet_by_id(db: Session, tweet_id: int) -> Tweet:
+    """
+    Get a tweet by its database ID
+
+    Args:
+        db: Database session
+        tweet_id: The internal database ID of the tweet
+
+    Returns:
+        Tweet instance or None if not found
+    """
+    return db.query(Tweet).filter(Tweet.id == tweet_id).first()
