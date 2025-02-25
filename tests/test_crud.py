@@ -2,7 +2,7 @@ import pytest
 import uuid
 from datetime import datetime
 from src.data_processing.database import get_db
-from src.data_processing.crud import (
+from src.data_processing.crud.create import (
     create_solana_token,
     create_tweet,
     create_sentiment_analysis,
