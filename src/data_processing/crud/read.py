@@ -155,3 +155,72 @@ def get_tweets(
 
     # Apply pagination and return results
     return query.offset(skip).limit(limit).all()
+
+
+def get_sentiment_analysis_by_id(db: Session, sentiment_id: int) -> SentimentAnalysis:
+    """
+    Get sentiment analysis by its ID
+
+    Args:
+        db: Database session
+        sentiment_id: The ID of the sentiment analysis record
+
+    Returns:
+        SentimentAnalysis instance or None if not found
+    """
+    return db.query(SentimentAnalysis).filter(SentimentAnalysis.id == sentiment_id).first()
+
+
+def get_sentiment_analysis_by_tweet_id(db: Session, tweet_id: int) -> SentimentAnalysis:
+    """
+    Get sentiment analysis for a specific tweet
+
+    Args:
+        db: Database session
+        tweet_id: The internal database ID of the tweet
+
+    Returns:
+        SentimentAnalysis instance or None if not found
+    """
+    return db.query(SentimentAnalysis).filter(SentimentAnalysis.tweet_id == tweet_id).first()
+
+
+def get_sentiment_analyses(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        sentiment: SentimentEnum = None,
+        min_confidence: float = None,
+        token_symbol: str = None
+) -> list[SentimentAnalysis]:
+    """
+    Get sentiment analyses with optional filtering and pagination
+
+    Args:
+        db: Database session
+        skip: Number of records to skip (for pagination)
+        limit: Maximum number of records to return
+        sentiment: Filter by specific sentiment
+        min_confidence: Filter by minimum confidence score
+        token_symbol: Filter for tweets mentioning specific token
+
+    Returns:
+        List of SentimentAnalysis instances
+    """
+    query = db.query(SentimentAnalysis).distinct()
+
+    # Filter by sentiment type
+    if sentiment:
+        query = query.filter(SentimentAnalysis.sentiment == sentiment)
+
+    # Filter by minimum confidence score
+    if min_confidence:
+        query = query.filter(SentimentAnalysis.confidence_score >= min_confidence)
+
+    # Filter by token mentions
+    if token_symbol:
+        query = query.join(Tweet).join(TokenMention).join(SolanaToken).filter(
+            SolanaToken.symbol.ilike(f"%{token_symbol}%"))
+
+    # Apply pagination and return results
+    return query.offset(skip).limit(limit).all()
