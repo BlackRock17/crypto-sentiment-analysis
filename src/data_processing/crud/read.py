@@ -238,3 +238,38 @@ def get_token_mention_by_id(db: Session, mention_id: int) -> TokenMention:
         TokenMention instance or None if not found
     """
     return db.query(TokenMention).filter(TokenMention.id == mention_id).first()
+
+
+def get_token_mentions_by_token_id(
+        db: Session,
+        token_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        date_from: datetime = None,
+        date_to: datetime = None
+) -> list[TokenMention]:
+    """
+    Get mentions of a specific token
+
+    Args:
+        db: Database session
+        token_id: The ID of the token
+        skip: Number of records to skip (for pagination)
+        limit: Maximum number of records to return
+        date_from: Filter mentions after this date
+        date_to: Filter mentions before this date
+
+    Returns:
+        List of TokenMention instances
+    """
+    query = db.query(TokenMention).filter(TokenMention.token_id == token_id)
+
+    # Filter by date range
+    if date_from:
+        query = query.filter(TokenMention.mentioned_at >= date_from)
+
+    if date_to:
+        query = query.filter(TokenMention.mentioned_at <= date_to)
+
+    # Apply pagination and return results
+    return query.offset(skip).limit(limit).all()
