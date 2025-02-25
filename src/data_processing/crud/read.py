@@ -224,3 +224,17 @@ def get_sentiment_analyses(
 
     # Apply pagination and return results
     return query.offset(skip).limit(limit).all()
+
+
+def get_token_mention_by_id(db: Session, mention_id: int) -> TokenMention:
+    """
+    Get token mention by its ID
+
+    Args:
+        db: Database session
+        mention_id: The ID of the token mention record
+
+    Returns:
+        TokenMention instance or None if not found
+    """
+    return db.query(TokenMention).filter(TokenMention.id == mention_id).first()
