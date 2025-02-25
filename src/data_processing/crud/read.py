@@ -273,3 +273,17 @@ def get_token_mentions_by_token_id(
 
     # Apply pagination and return results
     return query.offset(skip).limit(limit).all()
+
+
+def get_token_mentions_by_tweet_id(db: Session, tweet_id: int) -> list[TokenMention]:
+    """
+    Get all token mentions in a specific tweet
+
+    Args:
+        db: Database session
+        tweet_id: The ID of the tweet
+
+    Returns:
+        List of TokenMention instances
+    """
+    return db.query(TokenMention).filter(TokenMention.tweet_id == tweet_id).all()
