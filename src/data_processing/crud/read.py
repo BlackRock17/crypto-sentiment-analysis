@@ -90,3 +90,17 @@ def get_tweet_by_id(db: Session, tweet_id: int) -> Tweet:
         Tweet instance or None if not found
     """
     return db.query(Tweet).filter(Tweet.id == tweet_id).first()
+
+
+def get_tweet_by_twitter_id(db: Session, twitter_id: str) -> Tweet:
+    """
+    Get a tweet by its Twitter ID
+
+    Args:
+        db: Database session
+        twitter_id: The original Twitter ID
+
+    Returns:
+        Tweet instance or None if not found
+    """
+    return db.query(Tweet).filter(Tweet.tweet_id == twitter_id).first()
