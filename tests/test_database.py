@@ -9,10 +9,10 @@ def test_database_connection():
     try:
         db = next(get_db())
         print("✓ Successful database connection!")
-        return db
+        assert db is not None, "Database connection failed"
     except Exception as e:
         print("✗ Error connecting to database:", str(e))
-        return None
+        assert False, f"Database connection failed: {str(e)}"
 
 
 def add_test_data(db):
