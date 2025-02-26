@@ -40,3 +40,33 @@ def generate_unique_address():
 def generate_unique_tweet_id():
     """Generate unique tweet ID"""
     return str(uuid.uuid4().int)[:15]
+
+
+def test_update_solana_token(db):
+    """Test updating a Solana token"""
+    # Create a token to update
+    token = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="TEST",
+        name="Test Token"
+    )
+
+    # Update the token
+    updated_token = update_solana_token(
+        db=db,
+        token_id=token.id,
+        symbol="UPDATED",
+        name="Updated Token"
+    )
+
+    # Verify the update
+    assert updated_token is not None
+    assert updated_token.symbol == "UPDATED"
+    assert updated_token.name == "Updated Token"
+
+    # Clean up
+    db.delete(token)
+    db.commit()
+
+    print("✓ Successfully updated and verified Solana token")
