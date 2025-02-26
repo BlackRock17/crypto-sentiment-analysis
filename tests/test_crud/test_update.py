@@ -22,3 +22,21 @@ from src.data_processing.crud.update import (
     update_tweet_by_twitter_id
 )
 from src.data_processing.models.database import SentimentEnum
+
+
+@pytest.fixture
+def db():
+    """Database session fixture"""
+    session = next(get_db())
+    yield session
+    session.close()
+
+
+def generate_unique_address():
+    """Generate unique Solana address"""
+    return f"So{uuid.uuid4().hex[:40]}2"
+
+
+def generate_unique_tweet_id():
+    """Generate unique tweet ID"""
+    return str(uuid.uuid4().int)[:15]
