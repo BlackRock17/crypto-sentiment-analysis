@@ -89,3 +89,49 @@ def update_tweet(
     db.refresh(db_tweet)
 
     return db_tweet
+
+
+def update_sentiment_analysis(
+        db: Session,
+        sentiment_id: int,
+        sentiment: SentimentEnum = None,
+        confidence_score: float = None
+) -> SentimentAnalysis:
+    """
+    Update a sentiment analysis record
+
+    Args:
+        db: Database session
+        sentiment_id: The ID of the sentiment analysis record to update
+        sentiment: New sentiment value (optional)
+        confidence_score: New confidence score (optional)
+
+    Returns:
+        Updated SentimentAnalysis instance or None if not found
+    """
+    # Get the sentiment analysis by ID
+    db_sentiment = db.query(SentimentAnalysis).filter(SentimentAnalysis.id == sentiment_id).first()
+
+    # Return None if record doesn't exist
+    if db_sentiment is None:
+        return None
+
+    # Update sentiment if provided
+    if sentiment is not None:
+        db_sentiment.sentiment = sentiment
+
+    # Update confidence score if provided
+    if confidence_score is not None:
+        # Validate that confidence score is between 0 and 1
+        if not 0 <= confidence_score <= 1:
+            raise ValueError("Confidence score must be between 0 and 1")
+        db_sentiment.confidence_score = confidence_score
+
+    # Update the analyzed_at timestamp to current time
+    db_sentiment.analyzed_at = datetime.utcnow()
+
+    # Commit changes to the database
+    db.commit()
+    db.refresh(db_sentiment)
+
+    return db_sentiment
