@@ -186,3 +186,43 @@ def update_token_mention(
     db.refresh(db_mention)
 
     return db_mention
+
+
+def update_tweet_by_twitter_id(
+        db: Session,
+        twitter_id: str,
+        text: str = None,
+        author_username: str = None,
+        retweet_count: int = None,
+        like_count: int = None
+) -> Tweet:
+    """
+    Update a tweet record using its Twitter ID
+
+    Args:
+        db: Database session
+        twitter_id: The original Twitter ID (not the database ID)
+        text: New text content of the tweet (optional)
+        author_username: New author username (optional)
+        retweet_count: New retweet count (optional)
+        like_count: New like count (optional)
+
+    Returns:
+        Updated Tweet instance or None if not found
+    """
+    # Get the tweet by Twitter ID
+    db_tweet = db.query(Tweet).filter(Tweet.tweet_id == twitter_id).first()
+
+    # Return None if tweet doesn't exist
+    if db_tweet is None:
+        return None
+
+    # Call the existing update function with the database ID
+    return update_tweet(
+        db=db,
+        tweet_id=db_tweet.id,
+        text=text,
+        author_username=author_username,
+        retweet_count=retweet_count,
+        like_count=like_count
+    )
