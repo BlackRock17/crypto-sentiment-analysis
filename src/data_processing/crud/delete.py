@@ -34,3 +34,45 @@ def delete_solana_token(db: Session, token_id: int, check_mentions: bool = True)
     db.commit()
 
     return True
+
+
+def delete_tweet(db: Session, tweet_id: int, cascade: bool = True) -> bool:
+    """
+    Delete a tweet record
+
+    Args:
+        db: Database session
+        tweet_id: The internal database ID of the tweet to delete
+        cascade: If True, will also delete associated sentiment analysis and token mentions
+
+    Returns:
+        True if deletion was successful, False if tweet not found
+    """
+    # Get the tweet by ID
+    db_tweet = db.query(Tweet).filter(Tweet.id == tweet_id).first()
+
+    # Return False if tweet doesn't exist
+    if db_tweet is None:
+        return False
+
+    # Handle cascade deletion
+    if cascade:
+        # Delete associated sentiment analysis
+        db.query(SentimentAnalysis).filter(SentimentAnalysis.tweet_id == tweet_id).delete()
+
+        # Delete associated token mentions
+        db.query(TokenMention).filter(TokenMention.tweet_id == tweet_id).delete()
+    else:
+        # Check if tweet has associated records
+        sentiment_count = db.query(SentimentAnalysis).filter(SentimentAnalysis.tweet_id == tweet_id).count()
+        mentions_count = db.query(TokenMention).filter(TokenMention.tweet_id == tweet_id).count()
+
+        if sentiment_count > 0 or mentions_count > 0:
+            raise ValueError(
+                f"Cannot delete tweet with ID {tweet_id} as it has {sentiment_count} sentiment analyses and {mentions_count} token mentions. Use cascade delete or remove associated records first.")
+
+    # Delete the tweet
+    db.delete(db_tweet)
+    db.commit()
+
+    return True
