@@ -168,3 +168,29 @@ def test_data(db):
     db.delete(ray_token)
 
     db.commit()
+
+
+def test_get_token_sentiment_stats(db, test_data):
+    """Test getting sentiment statistics for a token"""
+    # Get sentiment stats for SOL
+    sol_stats = get_token_sentiment_stats(
+        db=db,
+        token_symbol="SOL",
+        days_back=7
+    )
+
+    # Verify structure and data
+    assert sol_stats["token"] == "SOL"
+    assert "period" in sol_stats
+    assert "total_mentions" in sol_stats
+    assert sol_stats["total_mentions"] > 0
+    assert "sentiment_breakdown" in sol_stats
+    assert "POSITIVE" in sol_stats["sentiment_breakdown"]
+    assert "NEGATIVE" in sol_stats["sentiment_breakdown"]
+    assert "NEUTRAL" in sol_stats["sentiment_breakdown"]
+
+    # Check that the counts add up to the total mentions
+    total_from_breakdown = sum(s["count"] for s in sol_stats["sentiment_breakdown"].values())
+    assert total_from_breakdown == sol_stats["total_mentions"]
+
+    print("✓ Successfully retrieved token sentiment statistics")
