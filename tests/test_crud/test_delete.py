@@ -370,3 +370,29 @@ def test_delete_solana_token_cascade(db):
     db.commit()
 
     print("✓ Successfully deleted Solana token with cascade")
+
+
+def test_delete_tweet_by_twitter_id(db):
+    """Test deleting a tweet by Twitter ID"""
+    # Create a tweet
+    twitter_id = generate_unique_tweet_id()
+    tweet = create_tweet(
+        db=db,
+        tweet_id=twitter_id,
+        text="Test tweet for Twitter ID deletion",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="test_user"
+    )
+
+    # Verify the tweet exists
+    assert get_tweet_by_id(db, tweet.id) is not None
+
+    # Delete the tweet by Twitter ID
+    result = delete_tweet_by_twitter_id(db, twitter_id)
+    assert result is True
+
+    # Verify the tweet is gone
+    assert get_tweet_by_id(db, tweet.id) is None
+
+    print("✓ Successfully deleted tweet by Twitter ID")
