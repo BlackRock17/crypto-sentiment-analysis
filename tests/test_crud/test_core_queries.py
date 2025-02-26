@@ -229,3 +229,32 @@ def test_get_token_sentiment_timeline(db, test_data):
         assert data_point["positive"] + data_point["negative"] + data_point["neutral"] == data_point["total"]
 
     print("✓ Successfully retrieved token sentiment timeline")
+
+
+def test_compare_token_sentiments(db, test_data):
+    """Test comparing sentiments between tokens"""
+    # Compare SOL, USDC, and RAY
+    comparison = compare_token_sentiments(
+        db=db,
+        token_symbols=["SOL", "USDC", "RAY"],
+        days_back=7
+    )
+
+    # Verify structure and data
+    assert "period" in comparison
+    assert "tokens" in comparison
+    assert "SOL" in comparison["tokens"]
+    assert "USDC" in comparison["tokens"]
+    assert "RAY" in comparison["tokens"]
+
+    for symbol, data in comparison["tokens"].items():
+        assert "total_mentions" in data
+        assert data["total_mentions"] > 0
+        assert "sentiment_score" in data
+        assert -1 <= data["sentiment_score"] <= 1  # Score should be between -1 and 1
+        assert "sentiments" in data
+        assert "POSITIVE" in data["sentiments"]
+        assert "NEGATIVE" in data["sentiments"]
+        assert "NEUTRAL" in data["sentiments"]
+
+    print("✓ Successfully compared token sentiments")
