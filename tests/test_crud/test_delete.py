@@ -149,3 +149,59 @@ def test_delete_tweet(db):
     assert get_tweet_by_id(db, tweet.id) is None
 
     print("✓ Successfully deleted tweet")
+
+
+def test_delete_tweet_cascade(db):
+    """Test deleting a tweet with cascade"""
+    # Create a token
+    token = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="TEST",
+        name="Test Token"
+    )
+
+    # Create a tweet
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Test tweet for cascade deletion",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="test_user"
+    )
+
+    # Create sentiment analysis
+    sentiment = create_sentiment_analysis(
+        db=db,
+        tweet_id=tweet.id,
+        sentiment=SentimentEnum.POSITIVE,
+        confidence_score=0.85
+    )
+
+    # Create a token mention
+    mention = create_token_mention(
+        db=db,
+        tweet_id=tweet.id,
+        token_id=token.id
+    )
+
+    # Verify the tweet and associated records exist
+    assert get_tweet_by_id(db, tweet.id) is not None
+    assert get_sentiment_analysis_by_id(db, sentiment.id) is not None
+    assert get_token_mention_by_id(db, mention.id) is not None
+
+    # Delete the tweet with cascade
+    result = delete_tweet(db, tweet.id, cascade=True)
+    assert result is True
+
+    # Verify the tweet and associated records are gone
+    assert get_tweet_by_id(db, tweet.id) is None
+    assert get_sentiment_analysis_by_id(db, sentiment.id) is None
+    assert get_token_mention_by_id(db, mention.id) is None
+
+    # Clean up
+    db.delete(token)
+    db.commit()
+
+    print("✓ Successfully deleted tweet with cascade")
