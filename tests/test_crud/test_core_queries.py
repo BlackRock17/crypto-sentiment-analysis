@@ -12,7 +12,7 @@ from src.data_processing.crud.core_queries import (
     get_token_sentiment_timeline,
     compare_token_sentiments,
     get_most_discussed_tokens,
-    get_top_users_by_token, analyze_token_correlation
+    get_top_users_by_token, analyze_token_correlation, get_sentiment_momentum
 )
 from src.data_processing.models.database import SentimentEnum
 
@@ -366,3 +366,42 @@ def test_analyze_token_correlation(db, test_data):
     assert found_ray, "RAY should be correlated with SOL in test data"
 
     print("✓ Successfully analyzed token correlations")
+
+
+def test_get_sentiment_momentum(db, test_data):
+    """Test getting sentiment momentum for tokens"""
+    # Get sentiment momentum for specific tokens
+    momentum_data = get_sentiment_momentum(
+        db=db,
+        token_symbols=["SOL", "USDC", "RAY"],
+        days_back=6,  # Use a wider range for test data
+        min_mentions=1  # Lower threshold for test data
+    )
+
+    # Verify structure and data
+    assert "period_1" in momentum_data
+    assert "period_2" in momentum_data
+    assert "tokens" in momentum_data
+    assert isinstance(momentum_data["tokens"], dict)
+
+    for symbol, token_data in momentum_data["tokens"].items():
+        assert "period_1" in token_data
+        assert "total_mentions" in token_data["period_1"]
+        assert "sentiment_score" in token_data["period_1"]
+        assert "sentiment_breakdown" in token_data["period_1"]
+
+        assert "period_2" in token_data
+        assert "total_mentions" in token_data["period_2"]
+        assert "sentiment_score" in token_data["period_2"]
+        assert "sentiment_breakdown" in token_data["period_2"]
+
+        assert "momentum" in token_data
+        assert isinstance(token_data["momentum"], float)
+        assert "mention_growth_percentage" in token_data
+
+    # Verify that tokens are sorted by momentum
+    tokens_momentum = list(momentum_data["tokens"].values())
+    for i in range(1, len(tokens_momentum)):
+        assert tokens_momentum[i - 1]["momentum"] >= tokens_momentum[i]["momentum"]
+
+    print("✓ Successfully calculated sentiment momentum for tokens")
