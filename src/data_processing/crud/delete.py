@@ -126,3 +126,49 @@ def delete_token_mention(db: Session, mention_id: int) -> bool:
     db.commit()
 
     return True
+
+
+def delete_tweet_by_twitter_id(db: Session, twitter_id: str, cascade: bool = True) -> bool:
+    """
+    Delete a tweet record using its Twitter ID
+
+    Args:
+        db: Database session
+        twitter_id: The original Twitter ID (not the database ID)
+        cascade: If True, will also delete associated sentiment analysis and token mentions
+
+    Returns:
+        True if deletion was successful, False if tweet not found
+    """
+    # Get the tweet by Twitter ID
+    db_tweet = db.query(Tweet).filter(Tweet.tweet_id == twitter_id).first()
+
+    # Return False if tweet doesn't exist
+    if db_tweet is None:
+        return False
+
+    # Call the existing delete function with the database ID
+    return delete_tweet(db=db, tweet_id=db_tweet.id, cascade=cascade)
+
+
+def delete_solana_token_by_address(db: Session, token_address: str, check_mentions: bool = True) -> bool:
+    """
+    Delete a Solana token record using its blockchain address
+
+    Args:
+        db: Database session
+        token_address: The token's address on Solana blockchain
+        check_mentions: If True, will check if token has mentions and prevent deletion
+
+    Returns:
+        True if deletion was successful, False if token not found or has mentions
+    """
+    # Get the token by address
+    db_token = db.query(SolanaToken).filter(SolanaToken.token_address == token_address).first()
+
+    # Return False if token doesn't exist
+    if db_token is None:
+        return False
+
+    # Call the existing delete function with the database ID
+    return delete_solana_token(db=db, token_id=db_token.id, check_mentions=check_mentions)
