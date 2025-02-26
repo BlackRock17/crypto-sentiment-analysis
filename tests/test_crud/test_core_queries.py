@@ -405,3 +405,24 @@ def test_get_sentiment_momentum(db, test_data):
         assert tokens_momentum[i - 1]["momentum"] >= tokens_momentum[i]["momentum"]
 
     print("✓ Successfully calculated sentiment momentum for tokens")
+
+
+def test_invalid_input_handling(db):
+    """Test handling of invalid inputs in core queries"""
+    # Test handling of non-existent token
+    with pytest.raises(ValueError):
+        get_token_sentiment_stats(db=db, token_symbol="NON_EXISTENT")
+
+    # Test handling of missing required parameters
+    with pytest.raises(ValueError):
+        get_token_sentiment_stats(db=db)
+
+    # Test handling of invalid date range
+    with pytest.raises(ValueError):
+        get_token_sentiment_timeline(db=db, token_symbol="SOL", days_back=-1)
+
+    # Test handling of invalid interval
+    with pytest.raises(ValueError):
+        get_token_sentiment_timeline(db=db, token_symbol="SOL", interval="invalid_interval")
+
+    print("✓ Successfully handled invalid inputs")
