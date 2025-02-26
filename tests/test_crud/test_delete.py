@@ -124,3 +124,28 @@ def test_delete_token_mention(db):
     db.commit()
 
     print("✓ Successfully deleted token mention")
+
+
+def test_delete_tweet(db):
+    """Test deleting a tweet"""
+    # Create a tweet
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Test tweet for deletion",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="test_user"
+    )
+
+    # Verify the tweet exists
+    assert get_tweet_by_id(db, tweet.id) is not None
+
+    # Delete the tweet
+    result = delete_tweet(db, tweet.id)
+    assert result is True
+
+    # Verify the tweet is gone
+    assert get_tweet_by_id(db, tweet.id) is None
+
+    print("✓ Successfully deleted tweet")
