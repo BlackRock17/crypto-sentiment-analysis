@@ -288,3 +288,39 @@ def test_get_most_discussed_tokens(db, test_data):
         assert top_tokens[i - 1]["mention_count"] >= top_tokens[i]["mention_count"]
 
     print("✓ Successfully retrieved most discussed tokens")
+
+
+def test_get_top_users_by_token(db, test_data):
+    """Test getting top users for a token"""
+    # Get top users discussing SOL
+    top_users = get_top_users_by_token(
+        db=db,
+        token_symbol="SOL",
+        days_back=7,
+        limit=5
+    )
+
+    # Verify structure and data
+    assert "token" in top_users
+    assert top_users["token"] == "SOL"
+    assert "period" in top_users
+    assert "top_users" in top_users
+    assert isinstance(top_users["top_users"], list)
+    assert len(top_users["top_users"]) > 0
+
+    for user_data in top_users["top_users"]:
+        assert "author_id" in user_data
+        assert "username" in user_data
+        assert "tweet_count" in user_data
+        assert user_data["tweet_count"] > 0
+        assert "total_likes" in user_data
+        assert "total_retweets" in user_data
+        assert "engagement_rate" in user_data
+        assert "influence_score" in user_data
+        assert "sentiment_distribution" in user_data
+
+    # Verify that users are sorted by tweet count (descending)
+    for i in range(1, len(top_users["top_users"])):
+        assert top_users["top_users"][i - 1]["tweet_count"] >= top_users["top_users"][i]["tweet_count"]
+
+    print("✓ Successfully retrieved top users by token")
