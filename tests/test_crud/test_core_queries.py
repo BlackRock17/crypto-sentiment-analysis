@@ -12,7 +12,7 @@ from src.data_processing.crud.core_queries import (
     get_token_sentiment_timeline,
     compare_token_sentiments,
     get_most_discussed_tokens,
-    get_top_users_by_token
+    get_top_users_by_token, analyze_token_correlation
 )
 from src.data_processing.models.database import SentimentEnum
 
@@ -324,3 +324,45 @@ def test_get_top_users_by_token(db, test_data):
         assert top_users["top_users"][i - 1]["tweet_count"] >= top_users["top_users"][i]["tweet_count"]
 
     print("✓ Successfully retrieved top users by token")
+
+
+def test_analyze_token_correlation(db, test_data):
+    """Test analyzing token correlations"""
+    # Analyze tokens correlated with SOL
+    correlation_data = analyze_token_correlation(
+        db=db,
+        primary_token_symbol="SOL",
+        days_back=7,
+        min_co_mentions=1  # Lower threshold for test data
+    )
+
+    # Verify structure and data
+    assert "primary_token" in correlation_data
+    assert correlation_data["primary_token"]["symbol"] == "SOL"
+    assert "total_mentions" in correlation_data["primary_token"]
+    assert "period" in correlation_data
+    assert "correlated_tokens" in correlation_data
+    assert isinstance(correlation_data["correlated_tokens"], list)
+
+    # We should find at least USDC and RAY
+    found_usdc = False
+    found_ray = False
+
+    for token_data in correlation_data["correlated_tokens"]:
+        assert "token_id" in token_data
+        assert "symbol" in token_data
+        assert "co_mention_count" in token_data
+        assert token_data["co_mention_count"] > 0
+        assert "correlation_percentage" in token_data
+        assert 0 <= token_data["correlation_percentage"] <= 100
+        assert "combined_sentiment" in token_data
+
+        if token_data["symbol"] == "USDC":
+            found_usdc = True
+        elif token_data["symbol"] == "RAY":
+            found_ray = True
+
+    assert found_usdc, "USDC should be correlated with SOL in test data"
+    assert found_ray, "RAY should be correlated with SOL in test data"
+
+    print("✓ Successfully analyzed token correlations")
