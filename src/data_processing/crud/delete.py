@@ -101,3 +101,28 @@ def delete_sentiment_analysis(db: Session, sentiment_id: int) -> bool:
     db.commit()
 
     return True
+
+
+def delete_token_mention(db: Session, mention_id: int) -> bool:
+    """
+    Delete a token mention record
+
+    Args:
+        db: Database session
+        mention_id: The ID of the token mention record to delete
+
+    Returns:
+        True if deletion was successful, False if record not found
+    """
+    # Get the token mention by ID
+    db_mention = db.query(TokenMention).filter(TokenMention.id == mention_id).first()
+
+    # Return False if record doesn't exist
+    if db_mention is None:
+        return False
+
+    # Delete the token mention
+    db.delete(db_mention)
+    db.commit()
+
+    return True
