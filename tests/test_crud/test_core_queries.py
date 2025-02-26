@@ -258,3 +258,33 @@ def test_compare_token_sentiments(db, test_data):
         assert "NEUTRAL" in data["sentiments"]
 
     print("✓ Successfully compared token sentiments")
+
+
+def test_get_most_discussed_tokens(db, test_data):
+    """Test getting the most discussed tokens"""
+    # Get most discussed tokens
+    top_tokens = get_most_discussed_tokens(
+        db=db,
+        days_back=7,
+        limit=10
+    )
+
+    # Verify structure and data
+    assert isinstance(top_tokens, list)
+    assert len(top_tokens) > 0
+
+    for token_data in top_tokens:
+        assert "token_id" in token_data
+        assert "symbol" in token_data
+        assert "name" in token_data
+        assert "mention_count" in token_data
+        assert token_data["mention_count"] > 0
+        assert "sentiment_score" in token_data
+        assert -1 <= token_data["sentiment_score"] <= 1
+        assert "sentiment_breakdown" in token_data
+
+    # Verify that tokens are sorted by mention count (descending)
+    for i in range(1, len(top_tokens)):
+        assert top_tokens[i - 1]["mention_count"] >= top_tokens[i]["mention_count"]
+
+    print("✓ Successfully retrieved most discussed tokens")
