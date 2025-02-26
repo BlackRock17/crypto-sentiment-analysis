@@ -172,3 +172,31 @@ def delete_solana_token_by_address(db: Session, token_address: str, check_mentio
 
     # Call the existing delete function with the database ID
     return delete_solana_token(db=db, token_id=db_token.id, check_mentions=check_mentions)
+
+
+def delete_solana_token_cascade(db: Session, token_id: int) -> bool:
+    """
+    Delete a Solana token record along with all its mentions
+
+    Args:
+        db: Database session
+        token_id: The ID of the token to delete
+
+    Returns:
+        True if deletion was successful, False if token not found
+    """
+    # Get the token by ID
+    db_token = db.query(SolanaToken).filter(SolanaToken.id == token_id).first()
+
+    # Return False if token doesn't exist
+    if db_token is None:
+        return False
+
+    # Delete all mentions of this token
+    db.query(TokenMention).filter(TokenMention.token_id == token_id).delete()
+
+    # Delete the token
+    db.delete(db_token)
+    db.commit()
+
+    return True
