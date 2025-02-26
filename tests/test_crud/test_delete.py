@@ -205,3 +205,52 @@ def test_delete_tweet_cascade(db):
     db.commit()
 
     print("✓ Successfully deleted tweet with cascade")
+
+
+def test_delete_tweet_no_cascade(db):
+    """Test deleting a tweet without cascade but with associated records"""
+    # Create a token
+    token = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="TEST",
+        name="Test Token"
+    )
+
+    # Create a tweet
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Test tweet for no cascade deletion",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="test_user"
+    )
+
+    # Create sentiment analysis
+    sentiment = create_sentiment_analysis(
+        db=db,
+        tweet_id=tweet.id,
+        sentiment=SentimentEnum.POSITIVE,
+        confidence_score=0.85
+    )
+
+    # Try to delete the tweet without cascade
+    try:
+        delete_tweet(db, tweet.id, cascade=False)
+        assert False, "Should have raised ValueError for deleting tweet with associated records"
+    except ValueError:
+        # This is expected behavior
+        pass
+
+    # Verify the tweet and sentiment still exist
+    assert get_tweet_by_id(db, tweet.id) is not None
+    assert get_sentiment_analysis_by_id(db, sentiment.id) is not None
+
+    # Clean up
+    db.delete(sentiment)
+    db.delete(tweet)
+    db.delete(token)
+    db.commit()
+
+    print("✓ Successfully prevented deletion of tweet with associated records without cascade")
