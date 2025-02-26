@@ -76,3 +76,28 @@ def delete_tweet(db: Session, tweet_id: int, cascade: bool = True) -> bool:
     db.commit()
 
     return True
+
+
+def delete_sentiment_analysis(db: Session, sentiment_id: int) -> bool:
+    """
+    Delete a sentiment analysis record
+
+    Args:
+        db: Database session
+        sentiment_id: The ID of the sentiment analysis record to delete
+
+    Returns:
+        True if deletion was successful, False if record not found
+    """
+    # Get the sentiment analysis by ID
+    db_sentiment = db.query(SentimentAnalysis).filter(SentimentAnalysis.id == sentiment_id).first()
+
+    # Return False if record doesn't exist
+    if db_sentiment is None:
+        return False
+
+    # Delete the sentiment analysis
+    db.delete(db_sentiment)
+    db.commit()
+
+    return True
