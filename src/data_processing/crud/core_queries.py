@@ -633,3 +633,157 @@ def analyze_token_correlation(
         "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
         "correlated_tokens": correlated_tokens
     }
+
+
+def get_sentiment_momentum(
+        db: Session,
+        token_symbols: List[str] = None,
+        top_n: int = 5,
+        days_back: int = 14,
+        min_mentions: int = 10
+) -> Dict:
+    """
+    Calculate sentiment momentum (change in sentiment over time) for tokens
+
+    Args:
+        db: Database session
+        token_symbols: List of token symbols to analyze (if None, will analyze top tokens)
+        top_n: If token_symbols is None, analyze this many top tokens
+        days_back: Total number of days to analyze
+        min_mentions: Minimum mentions required for a token to be included
+
+    Returns:
+        Dictionary with sentiment momentum data for tokens
+    """
+    # Calculate date ranges for comparison
+    end_date = datetime.utcnow()
+    mid_date = end_date - timedelta(days=days_back // 2)
+    start_date = end_date - timedelta(days=days_back)
+
+    # First period: start_date to mid_date
+    # Second period: mid_date to end_date
+
+    # If token_symbols not provided, find top tokens by mention count
+    if not token_symbols:
+        top_tokens_query = (
+            db.query(
+                SolanaToken.symbol
+            )
+            .join(TokenMention, TokenMention.token_id == SolanaToken.id)
+            .join(Tweet, Tweet.id == TokenMention.tweet_id)
+            .filter(Tweet.created_at.between(start_date, end_date))
+            .group_by(SolanaToken.symbol)
+            .having(func.count(TokenMention.id) >= min_mentions)
+            .order_by(desc(func.count(TokenMention.id)))
+            .limit(top_n)
+        )
+
+        token_symbols = [row[0] for row in top_tokens_query.all()]
+
+    # Container for results
+    results = {
+        "period_1": f"{start_date.strftime('%Y-%m-%d')} to {mid_date.strftime('%Y-%m-%d')}",
+        "period_2": f"{mid_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+        "tokens": {}
+    }
+
+    # Analyze each token
+    for symbol in token_symbols:
+        # Get sentiment for first period
+        period_1_query = (
+            db.query(
+                SentimentAnalysis.sentiment,
+                func.count(SentimentAnalysis.id).label("count")
+            )
+            .join(Tweet, Tweet.id == SentimentAnalysis.tweet_id)
+            .join(TokenMention, TokenMention.tweet_id == Tweet.id)
+            .join(SolanaToken, SolanaToken.id == TokenMention.token_id)
+            .filter(SolanaToken.symbol == symbol)
+            .filter(Tweet.created_at.between(start_date, mid_date))
+            .group_by(SentimentAnalysis.sentiment)
+        )
+
+        # Get sentiment for second period
+        period_2_query = (
+            db.query(
+                SentimentAnalysis.sentiment,
+                func.count(SentimentAnalysis.id).label("count")
+            )
+            .join(Tweet, Tweet.id == SentimentAnalysis.tweet_id)
+            .join(TokenMention, TokenMention.tweet_id == Tweet.id)
+            .join(SolanaToken, SolanaToken.id == TokenMention.token_id)
+            .filter(SolanaToken.symbol == symbol)
+            .filter(Tweet.created_at.between(mid_date, end_date))
+            .group_by(SentimentAnalysis.sentiment)
+        )
+
+        # Process period 1 data
+        period_1_data = {sentiment.value: 0 for sentiment in SentimentEnum}
+        for sentiment, count in period_1_query:
+            period_1_data[sentiment.value] = count
+
+        total_period_1 = sum(period_1_data.values())
+
+        # Process period 2 data
+        period_2_data = {sentiment.value: 0 for sentiment in SentimentEnum}
+        for sentiment, count in period_2_query:
+            period_2_data[sentiment.value] = count
+
+        total_period_2 = sum(period_2_data.values())
+
+        # Skip tokens with not enough mentions
+        if total_period_1 < min_mentions // 2 or total_period_2 < min_mentions // 2:
+            continue
+
+        # Calculate sentiment scores for each period
+        # Formula: (positive - negative) / total
+        period_1_score = (period_1_data["POSITIVE"] - period_1_data[
+            "NEGATIVE"]) / total_period_1 if total_period_1 > 0 else 0
+        period_2_score = (period_2_data["POSITIVE"] - period_2_data[
+            "NEGATIVE"]) / total_period_2 if total_period_2 > 0 else 0
+
+        # Calculate momentum (change in sentiment)
+        momentum = round(period_2_score - period_1_score, 3)
+
+        # Calculate mention growth
+        mention_growth = round(((total_period_2 - total_period_1) / total_period_1) * 100,
+                               1) if total_period_1 > 0 else float('inf')
+
+        # Add to results
+        results["tokens"][symbol] = {
+            "period_1": {
+                "total_mentions": total_period_1,
+                "sentiment_score": round(period_1_score, 3),
+                "sentiment_breakdown": {
+                    sentiment: {
+                        "count": count,
+                        "percentage": round((count / total_period_1) * 100, 1) if total_period_1 > 0 else 0
+                    }
+                    for sentiment, count in period_1_data.items()
+                }
+            },
+            "period_2": {
+                "total_mentions": total_period_2,
+                "sentiment_score": round(period_2_score, 3),
+                "sentiment_breakdown": {
+                    sentiment: {
+                        "count": count,
+                        "percentage": round((count / total_period_2) * 100, 1) if total_period_2 > 0 else 0
+                    }
+                    for sentiment, count in period_2_data.items()
+                }
+            },
+            "momentum": momentum,
+            "mention_growth_percentage": mention_growth
+        }
+
+    # Sort tokens by momentum for easier analysis
+    sorted_tokens = dict(sorted(
+        results["tokens"].items(),
+        key=lambda item: item[1]["momentum"],
+        reverse=True
+    ))
+
+    results["tokens"] = sorted_tokens
+
+    return results
