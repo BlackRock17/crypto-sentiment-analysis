@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_, or_
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 from src.data_processing.models.database import SolanaToken, Tweet, SentimentAnalysis, TokenMention, SentimentEnum
 
 
@@ -380,3 +380,128 @@ def get_most_discussed_tokens(
         })
 
     return results
+
+
+def get_top_users_by_token(
+        db: Session,
+        token_symbol: str = None,
+        token_id: int = None,
+        days_back: int = 30,
+        limit: int = 10
+) -> dict[str, str | list[dict[str, dict[Any, dict[str, int | float]] | Any]] | Any]:
+    """
+    Get top users discussing a specific token
+
+    Args:
+        db: Database session
+        token_symbol: Token symbol (e.g. 'SOL')
+        token_id: Token ID in the database (alternative to symbol)
+        days_back: Number of days to look back
+        limit: Maximum number of users to return
+
+    Returns:
+        List of users with their activity and sentiment statistics
+    """
+    if not token_symbol and not token_id:
+        raise ValueError("Must provide either token_symbol or token_id")
+
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days_back)
+
+    # Create base query
+    query = (
+        db.query(
+            Tweet.author_id,
+            Tweet.author_username,
+            func.count(Tweet.id).label("tweet_count"),
+            func.sum(Tweet.like_count).label("total_likes"),
+            func.sum(Tweet.retweet_count).label("total_retweets")
+        )
+        .join(TokenMention, TokenMention.tweet_id == Tweet.id)
+        .join(SolanaToken, SolanaToken.id == TokenMention.token_id)
+        .filter(Tweet.created_at.between(start_date, end_date))
+    )
+
+    # Filter by token
+    if token_symbol:
+        query = query.filter(SolanaToken.symbol == token_symbol)
+    else:
+        query = query.filter(SolanaToken.id == token_id)
+
+    # Group by author and order by tweet count
+    query = (
+        query.group_by(Tweet.author_id, Tweet.author_username)
+        .order_by(desc("tweet_count"), desc("total_likes"))
+        .limit(limit)
+    )
+
+    # Execute query
+    user_data = query.all()
+
+    # Process results
+    results = []
+    token_name = token_symbol if token_symbol else db.query(SolanaToken.symbol).filter(
+        SolanaToken.id == token_id).scalar()
+
+    for author_id, username, tweet_count, likes, retweets in user_data:
+        # Get sentiment distribution for this user and token
+        sentiment_query = (
+            db.query(
+                SentimentAnalysis.sentiment,
+                func.count(SentimentAnalysis.id).label("count")
+            )
+            .join(Tweet, Tweet.id == SentimentAnalysis.tweet_id)
+            .join(TokenMention, TokenMention.tweet_id == Tweet.id)
+            .join(SolanaToken, SolanaToken.id == TokenMention.token_id)
+            .filter(Tweet.author_id == author_id)
+            .filter(Tweet.created_at.between(start_date, end_date))
+        )
+
+        # Filter by token
+        if token_symbol:
+            sentiment_query = sentiment_query.filter(SolanaToken.symbol == token_symbol)
+        else:
+            sentiment_query = sentiment_query.filter(SolanaToken.id == token_id)
+
+        sentiment_query = sentiment_query.group_by(SentimentAnalysis.sentiment)
+
+        # Calculate sentiment stats
+        sentiment_counts = {sentiment.value: 0 for sentiment in SentimentEnum}
+        for sentiment, count in sentiment_query:
+            sentiment_counts[sentiment.value] = count
+
+        total_analyzed = sum(sentiment_counts.values())
+
+        # Calculate sentiment percentages
+        sentiment_percentages = {}
+        for sentiment, count in sentiment_counts.items():
+            sentiment_percentages[sentiment] = round((count / total_analyzed) * 100, 1) if total_analyzed > 0 else 0
+
+        # Calculate influence score (simplified)
+        engagement_rate = (likes + retweets * 2) / tweet_count if tweet_count > 0 else 0
+        influence_score = round(engagement_rate * tweet_count / 1000, 2)
+
+        # Add to results
+        results.append({
+            "author_id": author_id,
+            "username": username,
+            "tweet_count": tweet_count,
+            "total_likes": likes,
+            "total_retweets": retweets,
+            "engagement_rate": round(engagement_rate, 2),
+            "influence_score": influence_score,
+            "sentiment_distribution": {
+                sentiment: {
+                    "count": count,
+                    "percentage": sentiment_percentages[sentiment]
+                }
+                for sentiment, count in sentiment_counts.items()
+            }
+        })
+
+    return {
+        "token": token_name,
+        "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+        "top_users": results
+    }
