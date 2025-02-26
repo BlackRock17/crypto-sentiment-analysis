@@ -135,3 +135,54 @@ def update_sentiment_analysis(
     db.refresh(db_sentiment)
 
     return db_sentiment
+
+
+def update_token_mention(
+        db: Session,
+        mention_id: int,
+        tweet_id: int = None,
+        token_id: int = None
+) -> TokenMention:
+    """
+    Update a token mention record
+
+    Args:
+        db: Database session
+        mention_id: The ID of the token mention record to update
+        tweet_id: New tweet ID (optional)
+        token_id: New token ID (optional)
+
+    Returns:
+        Updated TokenMention instance or None if not found
+    """
+    # Get the token mention by ID
+    db_mention = db.query(TokenMention).filter(TokenMention.id == mention_id).first()
+
+    # Return None if record doesn't exist
+    if db_mention is None:
+        return None
+
+    # Update tweet_id if provided
+    if tweet_id is not None:
+        # Verify the tweet exists before updating
+        tweet_exists = db.query(Tweet).filter(Tweet.id == tweet_id).first() is not None
+        if not tweet_exists:
+            raise ValueError(f"Tweet with ID {tweet_id} does not exist")
+        db_mention.tweet_id = tweet_id
+
+    # Update token_id if provided
+    if token_id is not None:
+        # Verify the token exists before updating
+        token_exists = db.query(SolanaToken).filter(SolanaToken.id == token_id).first() is not None
+        if not token_exists:
+            raise ValueError(f"Token with ID {token_id} does not exist")
+        db_mention.token_id = token_id
+
+    # Update the mentioned_at timestamp
+    db_mention.mentioned_at = datetime.utcnow()
+
+    # Commit changes to the database
+    db.commit()
+    db.refresh(db_mention)
+
+    return db_mention
