@@ -505,3 +505,131 @@ def get_top_users_by_token(
         "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
         "top_users": results
     }
+
+
+def analyze_token_correlation(
+        db: Session,
+        primary_token_symbol: str,
+        days_back: int = 30,
+        min_co_mentions: int = 3,
+        limit: int = 10
+) -> Dict:
+    """
+    Analyze which tokens are frequently mentioned together with a primary token
+
+    Args:
+        db: Database session
+        primary_token_symbol: Primary token to analyze correlations for
+        days_back: Number of days to look back
+        min_co_mentions: Minimum number of co-mentions required to include a token
+        limit: Maximum number of correlated tokens to return
+
+    Returns:
+        Dictionary with correlation data between tokens
+    """
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days_back)
+
+    # Get the primary token ID
+    primary_token = db.query(SolanaToken).filter(SolanaToken.symbol == primary_token_symbol).first()
+    if not primary_token:
+        raise ValueError(f"Token with symbol '{primary_token_symbol}' not found")
+
+    # Find tweets that mention the primary token
+    primary_token_tweets = (
+        db.query(Tweet.id)
+        .join(TokenMention, TokenMention.tweet_id == Tweet.id)
+        .filter(TokenMention.token_id == primary_token.id)
+        .filter(Tweet.created_at.between(start_date, end_date))
+        .subquery()
+    )
+
+    # Find co-mentioned tokens in those tweets
+    co_mentioned_tokens = (
+        db.query(
+            SolanaToken.id,
+            SolanaToken.symbol,
+            SolanaToken.name,
+            func.count(TokenMention.tweet_id.distinct()).label("co_mention_count")
+        )
+        .join(TokenMention, TokenMention.token_id == SolanaToken.id)
+        .join(primary_token_tweets, TokenMention.tweet_id == primary_token_tweets.c.id)
+        .filter(SolanaToken.id != primary_token.id)  # Exclude the primary token
+        .group_by(SolanaToken.id, SolanaToken.symbol, SolanaToken.name)
+        .having(func.count(TokenMention.tweet_id.distinct()) >= min_co_mentions)
+        .order_by(desc("co_mention_count"))
+        .limit(limit)
+    )
+
+    # Execute query
+    co_mentioned_data = co_mentioned_tokens.all()
+
+    # Get total mentions of primary token for reference
+    primary_mentions_count = (
+        db.query(func.count(TokenMention.id.distinct()))
+        .filter(TokenMention.token_id == primary_token.id)
+        .filter(db.query(Tweet).filter(Tweet.id == TokenMention.tweet_id)
+                .filter(Tweet.created_at.between(start_date, end_date))
+                .exists())
+        .scalar()
+    )
+
+    # Process results
+    correlated_tokens = []
+    for token_id, symbol, name, co_mention_count in co_mentioned_data:
+        # Calculate correlation strength (percentage of co-mentions)
+        correlation_percentage = round((co_mention_count / primary_mentions_count) * 100,
+                                       2) if primary_mentions_count > 0 else 0
+
+        # Get combined sentiment for co-mentions
+        combined_sentiment_query = (
+            db.query(
+                SentimentAnalysis.sentiment,
+                func.count(SentimentAnalysis.id.distinct()).label("count")
+            )
+            .join(Tweet, Tweet.id == SentimentAnalysis.tweet_id)
+            .join(TokenMention, TokenMention.tweet_id == Tweet.id)
+            .filter(TokenMention.tweet_id.in_(
+                db.query(TokenMention.tweet_id)
+                .filter(TokenMention.token_id == primary_token.id)
+                .filter(db.query(TokenMention)
+                        .filter(TokenMention.tweet_id == TokenMention.tweet_id)
+                        .filter(TokenMention.token_id == token_id)
+                        .exists())
+            ))
+            .filter(Tweet.created_at.between(start_date, end_date))
+            .group_by(SentimentAnalysis.sentiment)
+        )
+
+        sentiment_data = {sentiment.value: 0 for sentiment in SentimentEnum}
+        for sentiment, count in combined_sentiment_query:
+            sentiment_data[sentiment.value] = count
+
+        total_sentiment = sum(sentiment_data.values())
+
+        # Add to results
+        correlated_tokens.append({
+            "token_id": token_id,
+            "symbol": symbol,
+            "name": name,
+            "co_mention_count": co_mention_count,
+            "correlation_percentage": correlation_percentage,
+            "combined_sentiment": {
+                sentiment: {
+                    "count": count,
+                    "percentage": round((count / total_sentiment) * 100, 2) if total_sentiment > 0 else 0
+                }
+                for sentiment, count in sentiment_data.items()
+            }
+        })
+
+    return {
+        "primary_token": {
+            "symbol": primary_token.symbol,
+            "name": primary_token.name,
+            "total_mentions": primary_mentions_count
+        },
+        "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+        "correlated_tokens": correlated_tokens
+    }
