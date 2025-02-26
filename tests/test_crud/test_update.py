@@ -211,3 +211,37 @@ def test_update_token_mention(db):
     db.commit()
 
     print("✓ Successfully updated and verified Token Mention")
+
+
+def test_update_tweet_by_twitter_id(db):
+    """Test updating a tweet by Twitter ID"""
+    # Create a tweet to update
+    twitter_id = generate_unique_tweet_id()
+    tweet = create_tweet(
+        db=db,
+        tweet_id=twitter_id,
+        text="Original tweet text",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="original_user"
+    )
+
+    # Update the tweet by Twitter ID
+    updated_tweet = update_tweet_by_twitter_id(
+        db=db,
+        twitter_id=twitter_id,
+        retweet_count=15,
+        like_count=25
+    )
+
+    # Verify the update
+    assert updated_tweet is not None
+    assert updated_tweet.text == "Original tweet text"  # Text shouldn't change
+    assert updated_tweet.retweet_count == 15
+    assert updated_tweet.like_count == 25
+
+    # Clean up
+    db.delete(tweet)
+    db.commit()
+
+    print("✓ Successfully updated and verified Tweet by Twitter ID")
