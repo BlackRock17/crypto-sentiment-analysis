@@ -420,3 +420,32 @@ def test_delete_solana_token_by_address(db):
     assert get_solana_token_by_id(db, token.id) is None
 
     print("✓ Successfully deleted Solana token by address")
+
+
+def test_delete_nonexistent_records(db):
+    """Test deleting records that don't exist"""
+    # Try to delete non-existent token
+    result = delete_solana_token(db, 99999)
+    assert result is False
+
+    # Try to delete non-existent tweet
+    result = delete_tweet(db, 99999)
+    assert result is False
+
+    # Try to delete non-existent sentiment analysis
+    result = delete_sentiment_analysis(db, 99999)
+    assert result is False
+
+    # Try to delete non-existent token mention
+    result = delete_token_mention(db, 99999)
+    assert result is False
+
+    # Try to delete non-existent tweet by Twitter ID
+    result = delete_tweet_by_twitter_id(db, "nonexistent_id")
+    assert result is False
+
+    # Try to delete non-existent token by address
+    result = delete_solana_token_by_address(db, "nonexistent_address")
+    assert result is False
+
+    print("✓ Successfully handled deletion of non-existent records")
