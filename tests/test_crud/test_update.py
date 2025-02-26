@@ -152,3 +152,62 @@ def test_update_sentiment_analysis(db):
     db.commit()
 
     print("✓ Successfully updated and verified Sentiment Analysis")
+
+
+def test_update_token_mention(db):
+    """Test updating token mention"""
+    # Create tokens
+    token1 = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="TKN1",
+        name="Token One"
+    )
+
+    token2 = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="TKN2",
+        name="Token Two"
+    )
+
+    # Create tweet
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Test tweet for token mention",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="token_user"
+    )
+
+    # Create mention to update
+    mention = create_token_mention(
+        db=db,
+        tweet_id=tweet.id,
+        token_id=token1.id
+    )
+
+    # Sleep briefly to ensure we can detect the timestamp change
+    original_mentioned_at = mention.mentioned_at
+
+    # Update the token mention
+    updated_mention = update_token_mention(
+        db=db,
+        mention_id=mention.id,
+        token_id=token2.id
+    )
+
+    # Verify the update
+    assert updated_mention is not None
+    assert updated_mention.token_id == token2.id
+    assert updated_mention.mentioned_at > original_mentioned_at
+
+    # Clean up
+    db.delete(mention)
+    db.delete(tweet)
+    db.delete(token1)
+    db.delete(token2)
+    db.commit()
+
+    print("✓ Successfully updated and verified Token Mention")
