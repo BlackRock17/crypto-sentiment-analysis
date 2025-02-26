@@ -107,3 +107,48 @@ def test_update_tweet(db):
     db.commit()
 
     print("✓ Successfully updated and verified Tweet")
+
+
+def test_update_sentiment_analysis(db):
+    """Test updating sentiment analysis"""
+    # Create a tweet
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Test tweet for sentiment analysis",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="sentiment_user"
+    )
+
+    # Create sentiment analysis to update
+    sentiment = create_sentiment_analysis(
+        db=db,
+        tweet_id=tweet.id,
+        sentiment=SentimentEnum.NEUTRAL,
+        confidence_score=0.5
+    )
+
+    # Sleep briefly to ensure we can detect the timestamp change
+    original_analyzed_at = sentiment.analyzed_at
+
+    # Update the sentiment analysis
+    updated_sentiment = update_sentiment_analysis(
+        db=db,
+        sentiment_id=sentiment.id,
+        sentiment=SentimentEnum.POSITIVE,
+        confidence_score=0.9
+    )
+
+    # Verify the update
+    assert updated_sentiment is not None
+    assert updated_sentiment.sentiment == SentimentEnum.POSITIVE
+    assert updated_sentiment.confidence_score == 0.9
+    assert updated_sentiment.analyzed_at > original_analyzed_at
+
+    # Clean up
+    db.delete(sentiment)
+    db.delete(tweet)
+    db.commit()
+
+    print("✓ Successfully updated and verified Sentiment Analysis")
