@@ -324,3 +324,49 @@ def test_delete_solana_token_with_mentions(db):
     db.commit()
 
     print("✓ Successfully prevented deletion of token with mentions")
+
+
+def test_delete_solana_token_cascade(db):
+    """Test deleting a Solana token with cascade"""
+    # Create a token
+    token = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="TEST",
+        name="Test Token"
+    )
+
+    # Create a tweet
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Test tweet for token cascade deletion",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="test_user"
+    )
+
+    # Create a token mention
+    mention = create_token_mention(
+        db=db,
+        tweet_id=tweet.id,
+        token_id=token.id
+    )
+
+    # Verify the token and mention exist
+    assert get_solana_token_by_id(db, token.id) is not None
+    assert get_token_mention_by_id(db, mention.id) is not None
+
+    # Delete the token with cascade
+    result = delete_solana_token_cascade(db, token.id)
+    assert result is True
+
+    # Verify the token and mention are gone
+    assert get_solana_token_by_id(db, token.id) is None
+    assert get_token_mention_by_id(db, mention.id) is None
+
+    # Clean up
+    db.delete(tweet)
+    db.commit()
+
+    print("✓ Successfully deleted Solana token with cascade")
