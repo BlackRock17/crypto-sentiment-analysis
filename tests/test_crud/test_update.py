@@ -70,3 +70,40 @@ def test_update_solana_token(db):
     db.commit()
 
     print("✓ Successfully updated and verified Solana token")
+
+
+def test_update_tweet(db):
+    """Test updating a tweet"""
+    # Create a tweet to update
+    tweet_id = generate_unique_tweet_id()
+    tweet = create_tweet(
+        db=db,
+        tweet_id=tweet_id,
+        text="Original tweet text",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="original_user"
+    )
+
+    # Update the tweet
+    updated_tweet = update_tweet(
+        db=db,
+        tweet_id=tweet.id,
+        text="Updated tweet text",
+        author_username="updated_user",
+        retweet_count=10,
+        like_count=20
+    )
+
+    # Verify the update
+    assert updated_tweet is not None
+    assert updated_tweet.text == "Updated tweet text"
+    assert updated_tweet.author_username == "updated_user"
+    assert updated_tweet.retweet_count == 10
+    assert updated_tweet.like_count == 20
+
+    # Clean up
+    db.delete(tweet)
+    db.commit()
+
+    print("✓ Successfully updated and verified Tweet")
