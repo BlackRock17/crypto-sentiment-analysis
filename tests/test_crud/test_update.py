@@ -270,3 +270,78 @@ def test_update_nonexistent_records(db):
     assert updated_tweet_by_id is None
 
     print("✓ Successfully handled updates to non-existent records")
+
+
+def test_update_validation(db):
+    """Test validation in update functions"""
+    # Create a test tweet
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Test validation",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="validation_user"
+    )
+
+    # Create sentiment analysis
+    sentiment = create_sentiment_analysis(
+        db=db,
+        tweet_id=tweet.id,
+        sentiment=SentimentEnum.NEUTRAL,
+        confidence_score=0.5
+    )
+
+    # Test validation for confidence score
+    try:
+        update_sentiment_analysis(db, sentiment.id, confidence_score=1.5)
+        assert False, "Should have raised ValueError for confidence score > 1"
+    except ValueError:
+        # This is expected
+        pass
+
+    try:
+        update_sentiment_analysis(db, sentiment.id, confidence_score=-0.1)
+        assert False, "Should have raised ValueError for confidence score < 0"
+    except ValueError:
+        # This is expected
+        pass
+
+    # Create tokens
+    token = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="VAL",
+        name="Validation Token"
+    )
+
+    # Create mention
+    mention = create_token_mention(
+        db=db,
+        tweet_id=tweet.id,
+        token_id=token.id
+    )
+
+    # Test validation for non-existent references
+    try:
+        update_token_mention(db, mention.id, tweet_id=99999)
+        assert False, "Should have raised ValueError for non-existent tweet"
+    except ValueError:
+        # This is expected
+        pass
+
+    try:
+        update_token_mention(db, mention.id, token_id=99999)
+        assert False, "Should have raised ValueError for non-existent token"
+    except ValueError:
+        # This is expected
+        pass
+
+    # Clean up
+    db.delete(mention)
+    db.delete(sentiment)
+    db.delete(tweet)
+    db.delete(token)
+    db.commit()
+
+    print("✓ Successfully validated update constraints")
