@@ -12,19 +12,29 @@ def get_token_sentiment_stats(
         days_back: int = 7
 ) -> Dict:
     """
-    Retrieves sentiment statistics for a specific token
+    Extract sentiment statistics for a specific token
 
     Args:
         db: Database session
-        token_symbol: Token symbol (eg 'SOL')
+        token_symbol: Token symbol (e.g. 'SOL')
         token_id: Token ID in the database (alternative to symbol)
-        days_back: Number of days back to analyze
+        days_back: Number of days to analyze
 
     Returns:
-        Dictionary of sentiment statistics
+        Dictionary with sentiment statistics
     """
     if not token_symbol and not token_id:
-        raise ValueError("token_symbol or token_id must be specified")
+        raise ValueError("Must provide either token_symbol or token_id")
+
+    # Check if token exists
+    if token_symbol:
+        token_exists = db.query(SolanaToken).filter(SolanaToken.symbol == token_symbol).first() is not None
+        if not token_exists:
+            raise ValueError(f"Token with symbol '{token_symbol}' not found")
+    elif token_id:
+        token_exists = db.query(SolanaToken).filter(SolanaToken.id == token_id).first() is not None
+        if not token_exists:
+            raise ValueError(f"Token with ID '{token_id}' not found")
 
     # Calculate the end date for the period
     end_date = datetime.utcnow()
@@ -43,7 +53,7 @@ def get_token_sentiment_stats(
         .filter(Tweet.created_at.between(start_date, end_date))
     )
 
-    # Token filtering
+    # Filter by token
     if token_symbol:
         query = query.filter(SolanaToken.symbol == token_symbol)
     else:
@@ -52,15 +62,15 @@ def get_token_sentiment_stats(
     # Grouping by mood and sorting by number
     query = query.group_by(SentimentAnalysis.sentiment).order_by(desc("count"))
 
-    # Request execution
+    # Execution of the request
     sentiment_stats = query.all()
 
     # Calculating the total number
     total_mentions = sum(stat.count for stat in sentiment_stats)
 
-    # Formatting the result
+    # Format the result
     result = {
-        "token": token_symbol,
+        "token": token_symbol if token_symbol else f"ID: {token_id}",
         "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
         "total_mentions": total_mentions,
         "sentiment_breakdown": {
@@ -98,6 +108,25 @@ def get_token_sentiment_timeline(
     """
     if not token_symbol and not token_id:
         raise ValueError("Must provide either token_symbol or token_id")
+
+    # Validate interval
+    valid_intervals = ["hour", "day", "week", "month"]
+    if interval not in valid_intervals:
+        raise ValueError(f"Invalid interval '{interval}'. Must be one of: {valid_intervals}")
+
+    # Validate days_back
+    if days_back <= 0:
+        raise ValueError("days_back must be a positive integer")
+
+    # Check if token exists
+    if token_symbol:
+        token_exists = db.query(SolanaToken).filter(SolanaToken.symbol == token_symbol).first() is not None
+        if not token_exists:
+            raise ValueError(f"Token with symbol '{token_symbol}' not found")
+    elif token_id:
+        token_exists = db.query(SolanaToken).filter(SolanaToken.id == token_id).first() is not None
+        if not token_exists:
+            raise ValueError(f"Token with ID '{token_id}' not found")
 
     # Calculate date range
     end_date = datetime.utcnow()
@@ -201,6 +230,22 @@ def compare_token_sentiments(
     if token_symbols and token_ids and len(token_symbols) != len(token_ids):
         raise ValueError("If both token_symbols and token_ids are provided, they must be the same length")
 
+    # Check if tokens exist
+    if token_symbols:
+        existing_tokens = db.query(SolanaToken.symbol).filter(SolanaToken.symbol.in_(token_symbols)).all()
+        existing_symbols = [token[0] for token in existing_tokens]
+        missing_symbols = [symbol for symbol in token_symbols if symbol not in existing_symbols]
+
+        if missing_symbols:
+            raise ValueError(f"Tokens with symbols {missing_symbols} not found")
+    elif token_ids:
+        existing_tokens = db.query(SolanaToken.id).filter(SolanaToken.id.in_(token_ids)).all()
+        existing_ids = [token[0] for token in existing_tokens]
+        missing_ids = [tid for tid in token_ids if tid not in existing_ids]
+
+        if missing_ids:
+            raise ValueError(f"Tokens with IDs {missing_ids} not found")
+
     # Calculate date range
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days_back)
@@ -265,9 +310,9 @@ def compare_token_sentiments(
 
         # Initialize with empty sentiment data in case some sentiments have no data
         sentiment_data = {
-            "POSITIVE": {"count": 0, "percentage": 0, "avg_confidence": 0},
-            "NEGATIVE": {"count": 0, "percentage": 0, "avg_confidence": 0},
-            "NEUTRAL": {"count": 0, "percentage": 0, "avg_confidence": 0}
+            "positive": {"count": 0, "percentage": 0, "avg_confidence": 0},
+            "negative": {"count": 0, "percentage": 0, "avg_confidence": 0},
+            "neutral": {"count": 0, "percentage": 0, "avg_confidence": 0}
         }
 
         # Update with actual data
@@ -279,8 +324,8 @@ def compare_token_sentiments(
             }
 
         # Calculate sentiment score: (positive - negative) / total
-        positive_count = sentiment_data["POSITIVE"]["count"]
-        negative_count = sentiment_data["NEGATIVE"]["count"]
+        positive_count = sentiment_data["positive"]["count"]
+        negative_count = sentiment_data["negative"]["count"]
         sentiment_score = round((positive_count - negative_count) / total, 2) if total > 0 else 0
 
         # Add to results
@@ -311,6 +356,14 @@ def get_most_discussed_tokens(
     Returns:
         List of tokens with their mention statistics
     """
+    # Validate inputs
+    if days_back <= 0:
+        raise ValueError("days_back must be a positive integer")
+    if limit <= 0:
+        raise ValueError("limit must be a positive integer")
+    if min_mentions < 0:
+        raise ValueError("min_mentions cannot be negative")
+
     # Calculate date range
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days_back)
@@ -351,16 +404,16 @@ def get_most_discussed_tokens(
             .group_by(SentimentAnalysis.sentiment)
         )
 
-        sentiment_counts = {sentiment: 0 for sentiment in SentimentEnum}
+        sentiment_counts = {sentiment.value: 0 for sentiment in SentimentEnum}
         for sentiment, count in sentiment_query:
-            sentiment_counts[sentiment] = count
+            sentiment_counts[sentiment.value] = count
 
         total_sentiment_count = sum(sentiment_counts.values())
 
         # Calculate sentiment score
-        positive_pct = round((sentiment_counts[SentimentEnum.POSITIVE] / total_sentiment_count) * 100,
+        positive_pct = round((sentiment_counts["positive"] / total_sentiment_count) * 100,
                              2) if total_sentiment_count > 0 else 0
-        negative_pct = round((sentiment_counts[SentimentEnum.NEGATIVE] / total_sentiment_count) * 100,
+        negative_pct = round((sentiment_counts["negative"] / total_sentiment_count) * 100,
                              2) if total_sentiment_count > 0 else 0
         sentiment_score = round((positive_pct - negative_pct) / 100, 2)
 
@@ -371,7 +424,7 @@ def get_most_discussed_tokens(
             "mention_count": mention_count,
             "sentiment_score": sentiment_score,
             "sentiment_breakdown": {
-                sentiment.value: {
+                sentiment: {
                     "count": count,
                     "percentage": round((count / total_sentiment_count) * 100, 2) if total_sentiment_count > 0 else 0
                 }
@@ -404,6 +457,22 @@ def get_top_users_by_token(
     """
     if not token_symbol and not token_id:
         raise ValueError("Must provide either token_symbol or token_id")
+
+    # Validate inputs
+    if days_back <= 0:
+        raise ValueError("days_back must be a positive integer")
+    if limit <= 0:
+        raise ValueError("limit must be a positive integer")
+
+    # Check if token exists
+    if token_symbol:
+        token_exists = db.query(SolanaToken).filter(SolanaToken.symbol == token_symbol).first() is not None
+        if not token_exists:
+            raise ValueError(f"Token with symbol '{token_symbol}' not found")
+    elif token_id:
+        token_exists = db.query(SolanaToken).filter(SolanaToken.id == token_id).first() is not None
+        if not token_exists:
+            raise ValueError(f"Token with ID '{token_id}' not found")
 
     # Calculate date range
     end_date = datetime.utcnow()
@@ -527,6 +596,14 @@ def analyze_token_correlation(
     Returns:
         Dictionary with correlation data between tokens
     """
+    # Validate inputs
+    if days_back <= 0:
+        raise ValueError("days_back must be a positive integer")
+    if min_co_mentions <= 0:
+        raise ValueError("min_co_mentions must be a positive integer")
+    if limit <= 0:
+        raise ValueError("limit must be a positive integer")
+
     # Calculate date range
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days_back)
@@ -655,6 +732,23 @@ def get_sentiment_momentum(
     Returns:
         Dictionary with sentiment momentum data for tokens
     """
+    # Validate inputs
+    if days_back <= 0:
+        raise ValueError("days_back must be a positive integer")
+    if min_mentions < 0:
+        raise ValueError("min_mentions cannot be negative")
+    if top_n <= 0:
+        raise ValueError("top_n must be a positive integer")
+
+    # Check if tokens exist
+    if token_symbols:
+        existing_tokens = db.query(SolanaToken.symbol).filter(SolanaToken.symbol.in_(token_symbols)).all()
+        existing_symbols = [token[0] for token in existing_tokens]
+        missing_symbols = [symbol for symbol in token_symbols if symbol not in existing_symbols]
+
+        if missing_symbols:
+            raise ValueError(f"Tokens with symbols {missing_symbols} not found")
+
     # Calculate date ranges for comparison
     end_date = datetime.utcnow()
     mid_date = end_date - timedelta(days=days_back // 2)
@@ -737,10 +831,10 @@ def get_sentiment_momentum(
 
         # Calculate sentiment scores for each period
         # Formula: (positive - negative) / total
-        period_1_score = (period_1_data["POSITIVE"] - period_1_data[
-            "NEGATIVE"]) / total_period_1 if total_period_1 > 0 else 0
-        period_2_score = (period_2_data["POSITIVE"] - period_2_data[
-            "NEGATIVE"]) / total_period_2 if total_period_2 > 0 else 0
+        period_1_score = (period_1_data["positive"] - period_1_data[
+            "negative"]) / total_period_1 if total_period_1 > 0 else 0
+        period_2_score = (period_2_data["positive"] - period_2_data[
+            "negative"]) / total_period_2 if total_period_2 > 0 else 0
 
         # Calculate momentum (change in sentiment)
         momentum = round(period_2_score - period_1_score, 3)

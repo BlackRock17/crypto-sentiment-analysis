@@ -1,6 +1,7 @@
 import pytest
 from datetime import datetime, timedelta
 from src.data_processing.database import get_db
+from src.data_processing.crud.read import get_solana_token_by_address
 from src.data_processing.crud.create import (
     create_solana_token,
     create_tweet,
@@ -14,12 +15,50 @@ from src.data_processing.crud.core_queries import (
     get_most_discussed_tokens,
     get_top_users_by_token, analyze_token_correlation, get_sentiment_momentum
 )
-from src.data_processing.models.database import SentimentEnum
+from src.data_processing.models.database import SentimentEnum, TokenMention, SentimentAnalysis, Tweet
+
+
+def clean_test_data(db):
+    """Clears test data if any are left over from previous tests"""
+    # Clearing the mentions token
+    db.query(TokenMention).delete()
+
+    # Clear sentiment analysis
+    db.query(SentimentAnalysis).delete()
+
+    # Clear tweets
+    db.query(Tweet).delete()
+
+    # Clearing tokens with the specific addresses we use for testing
+    test_addresses = [
+        "So11111111111111111111111111111111111111112",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"
+    ]
+
+    for address in test_addresses:
+        token = get_solana_token_by_address(db, address)
+        if token:
+            db.delete(token)
+
+    db.commit()
+
+
+@pytest.fixture
+def db():
+    """Database session fixture"""
+    session = next(get_db())
+    yield session
+    session.close()
 
 
 @pytest.fixture
 def test_data(db):
     """Create test data for core queries testing"""
+
+    # Clear all previous test data
+    clean_test_data(db)
+
     # Create tokens
     sol_token = create_solana_token(
         db=db,
@@ -185,9 +224,9 @@ def test_get_token_sentiment_stats(db, test_data):
     assert "total_mentions" in sol_stats
     assert sol_stats["total_mentions"] > 0
     assert "sentiment_breakdown" in sol_stats
-    assert "POSITIVE" in sol_stats["sentiment_breakdown"]
-    assert "NEGATIVE" in sol_stats["sentiment_breakdown"]
-    assert "NEUTRAL" in sol_stats["sentiment_breakdown"]
+    assert "positive" in sol_stats["sentiment_breakdown"]
+    assert "negative" in sol_stats["sentiment_breakdown"]
+    assert "neutral" in sol_stats["sentiment_breakdown"]
 
     # Check that the counts add up to the total mentions
     total_from_breakdown = sum(s["count"] for s in sol_stats["sentiment_breakdown"].values())
@@ -253,9 +292,9 @@ def test_compare_token_sentiments(db, test_data):
         assert "sentiment_score" in data
         assert -1 <= data["sentiment_score"] <= 1  # Score should be between -1 and 1
         assert "sentiments" in data
-        assert "POSITIVE" in data["sentiments"]
-        assert "NEGATIVE" in data["sentiments"]
-        assert "NEUTRAL" in data["sentiments"]
+        assert "positive" in data["sentiments"]
+        assert "negative" in data["sentiments"]
+        assert "neutral" in data["sentiments"]
 
     print("✓ Successfully compared token sentiments")
 

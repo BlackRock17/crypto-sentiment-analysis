@@ -132,6 +132,9 @@ def test_update_sentiment_analysis(db):
     # Sleep briefly to ensure we can detect the timestamp change
     original_analyzed_at = sentiment.analyzed_at
 
+    import time
+    time.sleep(0.1)
+
     # Update the sentiment analysis
     updated_sentiment = update_sentiment_analysis(
         db=db,
@@ -190,6 +193,9 @@ def test_update_token_mention(db):
 
     # Sleep briefly to ensure we can detect the timestamp change
     original_mentioned_at = mention.mentioned_at
+
+    import time
+    time.sleep(0.1)
 
     # Update the token mention
     updated_mention = update_token_mention(
