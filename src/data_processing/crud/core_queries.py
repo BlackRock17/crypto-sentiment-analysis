@@ -291,3 +291,92 @@ def compare_token_sentiments(
         }
 
     return results
+
+
+def get_most_discussed_tokens(
+        db: Session,
+        days_back: int = 7,
+        limit: int = 10,
+        min_mentions: int = 5
+) -> List[Dict]:
+    """
+    Get the most discussed tokens in a specific period
+
+    Args:
+        db: Database session
+        days_back: Number of days to look back
+        limit: Maximum number of tokens to return
+        min_mentions: Minimum number of mentions required
+
+    Returns:
+        List of tokens with their mention statistics
+    """
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days_back)
+
+    # Create query to count mentions for each token
+    query = (
+        db.query(
+            SolanaToken.id,
+            SolanaToken.symbol,
+            SolanaToken.name,
+            func.count(TokenMention.id).label("mention_count")
+        )
+        .join(TokenMention, TokenMention.token_id == SolanaToken.id)
+        .join(Tweet, Tweet.id == TokenMention.tweet_id)
+        .filter(Tweet.created_at.between(start_date, end_date))
+        .group_by(SolanaToken.id, SolanaToken.symbol, SolanaToken.name)
+        .having(func.count(TokenMention.id) >= min_mentions)
+        .order_by(desc("mention_count"))
+        .limit(limit)
+    )
+
+    # Execute query
+    token_mentions = query.all()
+
+    # Format results
+    results = []
+    for token_id, symbol, name, mention_count in token_mentions:
+        # Calculate sentiment distribution in a subquery
+        sentiment_query = (
+            db.query(
+                SentimentAnalysis.sentiment,
+                func.count(SentimentAnalysis.id).label("sentiment_count")
+            )
+            .join(Tweet, Tweet.id == SentimentAnalysis.tweet_id)
+            .join(TokenMention, TokenMention.tweet_id == Tweet.id)
+            .filter(TokenMention.token_id == token_id)
+            .filter(Tweet.created_at.between(start_date, end_date))
+            .group_by(SentimentAnalysis.sentiment)
+        )
+
+        sentiment_counts = {sentiment: 0 for sentiment in SentimentEnum}
+        for sentiment, count in sentiment_query:
+            sentiment_counts[sentiment] = count
+
+        total_sentiment_count = sum(sentiment_counts.values())
+
+        # Calculate sentiment score
+        positive_pct = round((sentiment_counts[SentimentEnum.POSITIVE] / total_sentiment_count) * 100,
+                             2) if total_sentiment_count > 0 else 0
+        negative_pct = round((sentiment_counts[SentimentEnum.NEGATIVE] / total_sentiment_count) * 100,
+                             2) if total_sentiment_count > 0 else 0
+        sentiment_score = round((positive_pct - negative_pct) / 100, 2)
+
+        results.append({
+            "token_id": token_id,
+            "symbol": symbol,
+            "name": name,
+            "mention_count": mention_count,
+            "sentiment_score": sentiment_score,
+            "sentiment_breakdown": {
+                sentiment.value: {
+                    "count": count,
+                    "percentage": round((count / total_sentiment_count) * 100, 2) if total_sentiment_count > 0 else 0
+                }
+                for sentiment, count in sentiment_counts.items()
+            }
+        })
+
+    return results
