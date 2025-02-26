@@ -56,7 +56,8 @@ solana_sentiment/
 │   │   │   ├── create.py
 │   │   │   ├── read.py
 │   │   │   ├── update.py
-│   │   │   └── delete.py
+│   │   │   ├── delete.py
+│   │   │   └── core_queries.py
 │   │   └── models/
 │   │       ├── __init__.py
 │   │       └── database.py
@@ -75,7 +76,8 @@ solana_sentiment/
 │   │   ├── test_create.py
 │   │   ├── test_read.py
 │   │   ├── test_update.py
-│   │   └── test_delete.py
+│   │   ├── test_delete.py
+│   │   └── test_core_queries.py
 │   └── test_database.py
 ├── requirements.txt
 ├── setup.py
@@ -92,7 +94,7 @@ solana_sentiment/
 4. GitHub repository setup ✓
 
 ### Phase 2: Data Infrastructure and Streaming (Current Phase)
-1. Database Implementation (In Progress)
+1. Database Implementation (Completed) ✓
    - Schema design ✓
    - SQLAlchemy models ✓
    - Migrations setup ✓
@@ -102,11 +104,11 @@ solana_sentiment/
      * Read operations with filtering ✓
      * Update operations with validation ✓
      * Delete operations with cascading ✓
-   - Core Queries (Next Step)
-     * Sentiment analysis queries
-     * Token analysis queries
-     * Complex queries with joins
-2. Basic Security Implementation
+   - Core Queries (Completed) ✓
+     * Sentiment analysis queries ✓
+     * Token analysis queries ✓
+     * Complex queries with joins ✓
+2. Basic Security Implementation (Next Step)
    - OAuth2 authentication setup
    - Secure credentials storage
    - API rate limiting configuration
@@ -194,24 +196,29 @@ solana_sentiment/
   * Read operations with filtering implemented ✓
   * Update operations with validation implemented ✓
   * Delete operations with cascading implemented ✓
-  * Unit tests for Create, Read, Update, and Delete operations implemented ✓
+  * Unit tests for Create, Read, Update, and Delete operations implemented and passing ✓
+- Core Queries:
+  * Sentiment analysis queries implemented ✓
+  * Token analysis queries implemented ✓
+  * Complex queries with joins implemented ✓
+  * Unit tests for Core Queries implemented and passing ✓
 - Project structure improved with modular organization ✓
   * Separated CRUD operations into individual files ✓
   * Organized test files by functionality ✓
 
 ## Next Steps
-1. Develop core database queries
-   - Design queries for sentiment analysis and aggregation
-   - Create token-specific analysis queries
-   - Implement complex joins for data correlation
-2. Begin security implementation
+1. Implement Basic Security
    - Set up OAuth2 authentication
-   - Implement credential storage securely
+   - Implement secure credential storage
    - Configure rate limiting for API
-3. Start Twitter API integration
+2. Begin Twitter API integration
    - Implement Twitter API client
    - Set up real-time data collection
    - Create data processing pipeline
+3. Start Kafka Integration
+   - Set up Kafka cluster
+   - Implement producer/consumer logic
+   - Create stream processing pipeline
 
 ## Advanced Features Details
 
