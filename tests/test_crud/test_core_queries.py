@@ -194,3 +194,38 @@ def test_get_token_sentiment_stats(db, test_data):
     assert total_from_breakdown == sol_stats["total_mentions"]
 
     print("✓ Successfully retrieved token sentiment statistics")
+
+
+def test_get_token_sentiment_timeline(db, test_data):
+    """Test getting sentiment timeline for a token"""
+    # Get sentiment timeline for SOL
+    sol_timeline = get_token_sentiment_timeline(
+        db=db,
+        token_symbol="SOL",
+        days_back=7,
+        interval="day"
+    )
+
+    # Verify structure and data
+    assert isinstance(sol_timeline, list)
+    assert len(sol_timeline) > 0
+
+    for data_point in sol_timeline:
+        assert "date" in data_point
+        assert "total" in data_point
+        assert "positive" in data_point
+        assert "negative" in data_point
+        assert "neutral" in data_point
+        assert "positive_pct" in data_point
+        assert "negative_pct" in data_point
+        assert "neutral_pct" in data_point
+
+        # Check that percentages are between 0 and 100
+        assert 0 <= data_point["positive_pct"] <= 100
+        assert 0 <= data_point["negative_pct"] <= 100
+        assert 0 <= data_point["neutral_pct"] <= 100
+
+        # Check that counts add up to total
+        assert data_point["positive"] + data_point["negative"] + data_point["neutral"] == data_point["total"]
+
+    print("✓ Successfully retrieved token sentiment timeline")
