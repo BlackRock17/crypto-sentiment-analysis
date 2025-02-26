@@ -245,3 +245,28 @@ def test_update_tweet_by_twitter_id(db):
     db.commit()
 
     print("✓ Successfully updated and verified Tweet by Twitter ID")
+
+
+def test_update_nonexistent_records(db):
+    """Test updating records that don't exist"""
+    # Try to update non-existent token
+    updated_token = update_solana_token(db, 99999, symbol="NONEXISTENT")
+    assert updated_token is None
+
+    # Try to update non-existent tweet
+    updated_tweet = update_tweet(db, 99999, text="Non-existent tweet")
+    assert updated_tweet is None
+
+    # Try to update non-existent sentiment analysis
+    updated_sentiment = update_sentiment_analysis(db, 99999, confidence_score=0.8)
+    assert updated_sentiment is None
+
+    # Try to update non-existent token mention
+    updated_mention = update_token_mention(db, 99999, token_id=1)
+    assert updated_mention is None
+
+    # Try to update non-existent tweet by Twitter ID
+    updated_tweet_by_id = update_tweet_by_twitter_id(db, "nonexistent_id", like_count=10)
+    assert updated_tweet_by_id is None
+
+    print("✓ Successfully handled updates to non-existent records")
