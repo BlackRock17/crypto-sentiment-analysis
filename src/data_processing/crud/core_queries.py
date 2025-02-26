@@ -175,3 +175,119 @@ def get_token_sentiment_timeline(
             data_point["neutral_pct"] = round((data_point["neutral"] / data_point["total"]) * 100, 2)
 
     return timeline_data
+
+
+def compare_token_sentiments(
+        db: Session,
+        token_symbols: List[str] = None,
+        token_ids: List[int] = None,
+        days_back: int = 7
+) -> Dict:
+    """
+    Compare sentiment analysis between multiple tokens
+
+    Args:
+        db: Database session
+        token_symbols: List of token symbols (e.g. ['SOL', 'USDC'])
+        token_ids: List of token IDs (alternative to symbols)
+        days_back: Number of days to look back
+
+    Returns:
+        Dictionary with comparative sentiment data for each token
+    """
+    if not token_symbols and not token_ids:
+        raise ValueError("Must provide either token_symbols or token_ids")
+
+    if token_symbols and token_ids and len(token_symbols) != len(token_ids):
+        raise ValueError("If both token_symbols and token_ids are provided, they must be the same length")
+
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days_back)
+
+    # Container for results
+    results = {
+        "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+        "tokens": {}
+    }
+
+    # If token_symbols is provided, use it, otherwise query token symbols
+    if token_symbols:
+        tokens_to_query = token_symbols
+        token_filter = SolanaToken.symbol.in_(token_symbols)
+    else:
+        tokens_to_query = token_ids
+        token_filter = SolanaToken.id.in_(token_ids)
+
+        # Get token symbols for the provided IDs
+        token_map = {
+            t.id: t.symbol for t in db.query(SolanaToken.id, SolanaToken.symbol)
+            .filter(SolanaToken.id.in_(token_ids)).all()
+        }
+
+    # Create base query with joins
+    query = (
+        db.query(
+            SolanaToken.symbol,
+            SentimentAnalysis.sentiment,
+            func.count(SentimentAnalysis.id).label("count"),
+            func.avg(SentimentAnalysis.confidence_score).label("avg_confidence")
+        )
+        .join(TokenMention, TokenMention.token_id == SolanaToken.id)
+        .join(Tweet, Tweet.id == TokenMention.tweet_id)
+        .join(SentimentAnalysis, SentimentAnalysis.tweet_id == Tweet.id)
+        .filter(token_filter)
+        .filter(Tweet.created_at.between(start_date, end_date))
+        .group_by(SolanaToken.symbol, SentimentAnalysis.sentiment)
+    )
+
+    # Execute query
+    sentiment_data = query.all()
+
+    # Process results
+    token_mentions = {}
+    for symbol, sentiment, count, avg_confidence in sentiment_data:
+        if symbol not in token_mentions:
+            token_mentions[symbol] = {
+                "total": 0,
+                "sentiments": {}
+            }
+
+        token_mentions[symbol]["total"] += count
+        token_mentions[symbol]["sentiments"][sentiment.value] = {
+            "count": count,
+            "avg_confidence": round(avg_confidence, 2)
+        }
+
+    # Calculate percentages and prepare final format
+    for symbol, data in token_mentions.items():
+        total = data["total"]
+
+        # Initialize with empty sentiment data in case some sentiments have no data
+        sentiment_data = {
+            "POSITIVE": {"count": 0, "percentage": 0, "avg_confidence": 0},
+            "NEGATIVE": {"count": 0, "percentage": 0, "avg_confidence": 0},
+            "NEUTRAL": {"count": 0, "percentage": 0, "avg_confidence": 0}
+        }
+
+        # Update with actual data
+        for sentiment, sentiment_stats in data["sentiments"].items():
+            sentiment_data[sentiment] = {
+                "count": sentiment_stats["count"],
+                "percentage": round((sentiment_stats["count"] / total) * 100, 2) if total > 0 else 0,
+                "avg_confidence": sentiment_stats["avg_confidence"]
+            }
+
+        # Calculate sentiment score: (positive - negative) / total
+        positive_count = sentiment_data["POSITIVE"]["count"]
+        negative_count = sentiment_data["NEGATIVE"]["count"]
+        sentiment_score = round((positive_count - negative_count) / total, 2) if total > 0 else 0
+
+        # Add to results
+        results["tokens"][symbol] = {
+            "total_mentions": total,
+            "sentiment_score": sentiment_score,  # Range from -1 to 1
+            "sentiments": sentiment_data
+        }
+
+    return results
