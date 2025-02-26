@@ -277,3 +277,50 @@ def test_delete_solana_token(db):
     assert get_solana_token_by_id(db, token.id) is None
 
     print("✓ Successfully deleted Solana token")
+
+
+def test_delete_solana_token_with_mentions(db):
+    """Test deleting a Solana token that has mentions"""
+    # Create a token
+    token = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="TEST",
+        name="Test Token"
+    )
+
+    # Create a tweet
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Test tweet for token deletion",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="test_user"
+    )
+
+    # Create a token mention
+    mention = create_token_mention(
+        db=db,
+        tweet_id=tweet.id,
+        token_id=token.id
+    )
+
+    # Try to delete the token with check_mentions=True
+    try:
+        delete_solana_token(db, token.id, check_mentions=True)
+        assert False, "Should have raised ValueError for deleting token with mentions"
+    except ValueError:
+        # This is expected behavior
+        pass
+
+    # Verify the token still exists
+    assert get_solana_token_by_id(db, token.id) is not None
+
+    # Clean up
+    db.delete(mention)
+    db.delete(tweet)
+    db.delete(token)
+    db.commit()
+
+    print("✓ Successfully prevented deletion of token with mentions")
