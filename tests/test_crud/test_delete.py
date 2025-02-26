@@ -79,3 +79,48 @@ def test_delete_sentiment_analysis(db):
     db.commit()
 
     print("✓ Successfully deleted sentiment analysis")
+
+
+def test_delete_token_mention(db):
+    """Test deleting a token mention"""
+    # Create a token
+    token = create_solana_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="TEST",
+        name="Test Token"
+    )
+
+    # Create a tweet
+    tweet = create_tweet(
+        db=db,
+        tweet_id=generate_unique_tweet_id(),
+        text="Test tweet for mention deletion",
+        created_at=datetime.utcnow(),
+        author_id=str(uuid.uuid4().int)[:6],
+        author_username="test_user"
+    )
+
+    # Create a token mention
+    mention = create_token_mention(
+        db=db,
+        tweet_id=tweet.id,
+        token_id=token.id
+    )
+
+    # Verify the mention exists
+    assert get_token_mention_by_id(db, mention.id) is not None
+
+    # Delete the mention
+    result = delete_token_mention(db, mention.id)
+    assert result is True
+
+    # Verify the mention is gone
+    assert get_token_mention_by_id(db, mention.id) is None
+
+    # Clean up
+    db.delete(tweet)
+    db.delete(token)
+    db.commit()
+
+    print("✓ Successfully deleted token mention")
