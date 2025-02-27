@@ -34,3 +34,17 @@ def get_user_by_email(db: Session, email: str) -> Optional[User]:
         User object or None if not found
     """
     return db.query(User).filter(User.email == email).first()
+
+
+def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
+    """
+    Returns a user by ID
+
+    Args:
+        db: Database session
+        user_id: User ID
+
+    Returns:
+        User object or None if not found
+    """
+    return db.query(User).filter(User.id == user_id).first()
