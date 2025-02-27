@@ -31,3 +31,5 @@ SOLANA_HASHTAGS = [
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_hex(32))  # Generates a random key if none exists
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30  # 30 minutes token validity
+
+RATE_LIMIT_PER_MINUTE = 5
