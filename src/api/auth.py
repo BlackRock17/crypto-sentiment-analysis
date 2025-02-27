@@ -99,3 +99,22 @@ async def read_users_me(
     Get current user information
     """
     return current_user
+
+
+@router.post("/api-keys", response_model=ApiKeyResponse)
+async def create_new_api_key(
+        api_key_data: ApiKeyCreate,
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Create a new API key for the current user
+    """
+    api_key = create_api_key(
+        db=db,
+        user_id=current_user.id,
+        name=api_key_data.name,
+        expiration_days=api_key_data.expiration_days
+    )
+
+    return api_key
