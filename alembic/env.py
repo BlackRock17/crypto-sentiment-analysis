@@ -14,6 +14,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.data_processing.models import Base
 from config.settings import DATABASE_URL
 
+# Adding our auth models to import models
+from src.data_processing.models.auth import User, Token, ApiKey
+
+
 # this is the Alembic Config object
 config = context.config
 
