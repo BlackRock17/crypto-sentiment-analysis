@@ -103,3 +103,23 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
         return None
 
     return user
+
+
+def get_active_token(db: Session, token: str) -> Optional[Token]:
+    """
+    Returns an active token if it exists and has not expired.
+
+    Args:
+        db: Database session
+        token: JWT token
+
+    Returns:
+        Token object if valid, otherwise None
+    """
+    return db.query(Token).filter(
+        and_(
+            Token.token == token,
+            Token.is_revoked == False,
+            or_(Token.expires_at > datetime.utcnow(), Token.expires_at == None)
+        )
+    ).first()
