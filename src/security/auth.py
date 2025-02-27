@@ -59,3 +59,45 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
 
     return user
+
+
+def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Checks if the current user is active
+
+    Args:
+        current_user: User object
+
+    Returns:
+        The user object
+
+    Raises:
+        HTTPException: If the user is not active
+    """
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user"
+        )
+    return current_user
+
+
+def get_current_superuser(current_user: User = Depends(get_current_active_user)) -> User:
+    """
+    Checks if the current user is a superuser (admin)
+
+    Args:
+        current_user: User object
+
+    Returns:
+        The user object
+
+    Raises:
+        HTTPException: If the user is not a superuser
+    """
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions"
+        )
+    return current_user
