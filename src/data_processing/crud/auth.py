@@ -216,3 +216,15 @@ def get_active_api_key(db: Session, key: str) -> Optional[ApiKey]:
             or_(ApiKey.expiration_date > datetime.utcnow(), ApiKey.expiration_date == None)
         )
     ).first()
+
+
+def update_api_key_usage(db: Session, api_key: ApiKey) -> None:
+    """
+    Updates the last time the API key was used
+
+    Args:
+        db: Database session
+        api_key: ApiKey object
+    """
+    api_key.last_used_at = datetime.utcnow()
+    db.commit()
