@@ -182,3 +182,17 @@ def create_api_key(db: Session, user_id: int, name: str, expiration_days: Option
     db.refresh(db_api_key)
 
     return db_api_key
+
+
+def get_api_key(db: Session, key: str) -> Optional[ApiKey]:
+    """
+    Returns an API key by its value
+
+    Args:
+        db: Database session
+        key: The value of the API key
+
+    Returns:
+        ApiKey object if found, otherwise None
+    """
+    return db.query(ApiKey).filter(ApiKey.key == key).first()
