@@ -80,3 +80,26 @@ def create_user(db: Session, username: str, email: str, password: str, is_superu
     db.refresh(db_user)
 
     return db_user
+
+
+def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
+    """
+    Authenticates a user via username and password
+
+    Args:
+        db: Database session
+        username: Username
+        password: Password
+
+    Returns:
+        User object if authentication is successful, otherwise None
+    """
+    user = get_user_by_username(db, username)
+
+    if not user:
+        return None
+
+    if not verify_password(password, user.hashed_password):
+        return None
+
+    return user
