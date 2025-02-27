@@ -101,3 +101,42 @@ def get_current_superuser(current_user: User = Depends(get_current_active_user))
             detail="Insufficient permissions"
         )
     return current_user
+
+
+def get_user_by_api_key(api_key: str = Depends(api_key_header), db: Session = Depends(get_db)) -> User:
+    """
+    Retrieves a user based on an API key
+
+    Args:
+        api_key: API key from X-API-Key header
+        db: Database session
+
+    Returns:
+        The user object
+
+    Raises:
+        HTTPException: If the API key is invalid
+    """
+    api_key_obj = get_active_api_key(db, api_key)
+
+    if not api_key_obj:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key",
+            headers={"WWW-Authenticate": "APIKey"},
+        )
+
+    # Update last used time
+    update_api_key_usage(db, api_key_obj)
+
+    # Retrieve user
+    user = get_user_by_id(db, api_key_obj.user_id)
+
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API Key associated with inactive user",
+            headers={"WWW-Authenticate": "APIKey"},
+        )
+
+    return user
