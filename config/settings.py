@@ -1,4 +1,5 @@
 import os
+import secrets
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -25,3 +26,8 @@ SOLANA_HASHTAGS = [
     'solananft',
     'solanafamous',
 ]
+
+# JWT Settings
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_hex(32))  # Generates a random key if none exists
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  # 30 minutes token validity
