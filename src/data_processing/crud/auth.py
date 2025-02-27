@@ -196,3 +196,23 @@ def get_api_key(db: Session, key: str) -> Optional[ApiKey]:
         ApiKey object if found, otherwise None
     """
     return db.query(ApiKey).filter(ApiKey.key == key).first()
+
+
+def get_active_api_key(db: Session, key: str) -> Optional[ApiKey]:
+    """
+    Returns an active API key if it exists and has not expired.
+
+    Args:
+        db: Database session
+        key: The value of the API key
+
+    Returns:
+        ApiKey object if valid, otherwise None
+    """
+    return db.query(ApiKey).filter(
+        and_(
+            ApiKey.key == key,
+            ApiKey.is_active == True,
+            or_(ApiKey.expiration_date > datetime.utcnow(), ApiKey.expiration_date == None)
+        )
+    ).first()
