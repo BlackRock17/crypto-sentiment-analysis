@@ -123,3 +123,25 @@ def get_active_token(db: Session, token: str) -> Optional[Token]:
             or_(Token.expires_at > datetime.utcnow(), Token.expires_at == None)
         )
     ).first()
+
+
+def revoke_token(db: Session, token: str) -> bool:
+    """
+    Revokes (deactivates) a token
+
+    Args:
+        db: Database session
+        token: JWT token
+
+    Returns:
+        True if the token was successfully revoked, otherwise False
+    """
+    db_token = db.query(Token).filter(Token.token == token).first()
+
+    if not db_token:
+        return False
+
+    db_token.is_revoked = True
+    db.commit()
+
+    return True
