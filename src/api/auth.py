@@ -19,3 +19,38 @@ from src.security.utils import create_user_token
 from src.data_processing.models.auth import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+@router.post("/token", response_model=Token)
+async def login_for_access_token(
+        form_data: OAuth2PasswordRequestForm = Depends(),
+        db: Session = Depends(get_db)
+):
+    """
+    OAuth2 compatible token login endpoint
+    """
+    # Authenticate user
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Check if user is active
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is disabled",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Create access token
+    token = create_user_token(db, user)
+
+    return {
+        "access_token": token.token,
+        "token_type": token.token_type,
+        "expires_at": token.expires_at
+    }
