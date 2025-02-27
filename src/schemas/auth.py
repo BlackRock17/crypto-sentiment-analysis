@@ -43,3 +43,17 @@ class ApiKeyCreate(BaseModel):
     """API key creation schema"""
     name: str
     expiration_days: Optional[int] = None
+
+
+class ApiKeyResponse(BaseModel):
+    """API key response schema"""
+    id: int
+    name: str
+    key: str
+    created_at: datetime
+    expiration_date: Optional[datetime] = None
+    last_used_at: Optional[datetime] = None
+    is_active: bool
+
+    class Config:
+        orm_mode = True
