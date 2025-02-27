@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 
 from sqlalchemy.orm import Session
@@ -145,3 +145,40 @@ def revoke_token(db: Session, token: str) -> bool:
     db.commit()
 
     return True
+
+
+def create_api_key(db: Session, user_id: int, name: str, expiration_days: Optional[int] = None) -> ApiKey:
+    """
+    Creates a new API key for a user
+
+    Args:
+        db: Database session
+        user_id: User ID
+        name: Descriptive API key name
+        expiration_days: Number of days until key expires (None for perpetual)
+
+    Returns:
+        Newly created ApiKey object
+    """
+    # Generate a random API key
+    import secrets
+    key = secrets.token_hex(32)  # 64-character hexadecimal key
+
+    # Specify an expiration date, if provided
+    expiration_date = None
+    if expiration_days:
+        expiration_date = datetime.utcnow() + timedelta(days=expiration_days)
+
+    # Create API key
+    db_api_key = ApiKey(
+        key=key,
+        user_id=user_id,
+        name=name,
+        expiration_date=expiration_date
+    )
+
+    db.add(db_api_key)
+    db.commit()
+    db.refresh(db_api_key)
+
+    return db_api_key
