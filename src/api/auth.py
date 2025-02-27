@@ -118,3 +118,17 @@ async def create_new_api_key(
     )
 
     return api_key
+
+
+@router.get("/users", response_model=List[UserResponse])
+async def read_users(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_superuser),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all users (admin only)
+    """
+    users = db.query(User).offset(skip).limit(limit).all()
+    return users
