@@ -120,3 +120,25 @@ def test_expired_token_not_active(db: Session, test_user: User):
     db.commit()
 
     print("✓ Successfully verified expired token is not active")
+
+
+def test_create_api_key(db: Session, test_user: User):
+    """Test creating an API key"""
+    api_key = create_api_key(
+        db=db,
+        user_id=test_user.id,
+        name="Test API Key"
+    )
+
+    assert api_key is not None
+    assert api_key.user_id == test_user.id
+    assert api_key.name == "Test API Key"
+    assert api_key.is_active == True
+    assert api_key.key is not None
+    assert len(api_key.key) == 64  # 64-character hexadecimal key
+
+    # Clean up
+    db.delete(api_key)
+    db.commit()
+
+    print("✓ Successfully created and verified API key")
