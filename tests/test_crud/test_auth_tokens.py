@@ -264,3 +264,27 @@ def test_expired_api_key_not_active(db: Session, test_user: User):
     db.commit()
 
     print("✓ Successfully verified expired API key is not active")
+
+
+def test_inactive_api_key_not_active(db: Session, test_user: User):
+    """Test that an inactive API key is not considered active"""
+    # Create an inactive API key
+    inactive_api_key = ApiKey(
+        key="inactive_test_api_key",
+        user_id=test_user.id,
+        name="Inactive API Key",
+        is_active=False
+    )
+
+    db.add(inactive_api_key)
+    db.commit()
+
+    # Test that get_active_api_key doesn't return the inactive key
+    active_key = get_active_api_key(db, "inactive_test_api_key")
+    assert active_key is None
+
+    # Clean up
+    db.delete(inactive_api_key)
+    db.commit()
+
+    print("✓ Successfully verified inactive API key is not active")
