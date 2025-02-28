@@ -48,3 +48,22 @@ def test_get_current_user_valid_token(db: Session):
     db.commit()
 
     print("✓ Successfully tested get_current_user with valid token")
+
+
+def test_get_current_user_invalid_token(db: Session):
+    """Test get_current_user with invalid token"""
+    # Create an invalid token with wrong signature
+    payload = {
+        "sub": "fake_user",
+        "user_id": 999,
+        "exp": datetime.utcnow() + timedelta(minutes=30)
+    }
+    invalid_token = jwt.encode(payload, "wrong_secret", algorithm=JWT_ALGORITHM)
+
+    # Test get_current_user with invalid token
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user(token=invalid_token, db=db)
+
+    assert exc_info.value.status_code == 401
+
+    print("✓ Successfully tested get_current_user with invalid token")
