@@ -75,3 +75,22 @@ def test_create_api_key(auth_headers):
     assert data["is_active"] == True
 
     print("✓ Successfully tested API key creation")
+
+
+def test_create_api_key_without_auth():
+    """Test creating API key without authentication"""
+    api_key_data = {
+        "name": "Unauthorized Key",
+        "expiration_days": 30
+    }
+
+    # Make the request without auth headers
+    response = client.post(
+        "/auth/api-keys",
+        json=api_key_data
+    )
+
+    # Check response - should require authentication
+    assert response.status_code == 401
+
+    print("✓ Successfully tested API key creation without authentication")
