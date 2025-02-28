@@ -143,3 +143,44 @@ def test_signup_endpoint_duplicate_username(db: Session):
     db.commit()
 
     print("✓ Successfully tested duplicate username registration")
+
+
+def test_me_endpoint_with_auth(db: Session):
+    """Test /me endpoint with valid authentication"""
+    timestamp = datetime.utcnow().timestamp()
+    username = f"me_test_user_{timestamp}"
+    password = "testpassword"
+
+    # Create a test user
+    user = create_user(
+        db=db,
+        username=username,
+        email=f"me_test_{timestamp}@example.com",
+        password=password
+    )
+
+    # Login to get token
+    login_response = client.post(
+        "/auth/token",
+        data={"username": username, "password": password}
+    )
+
+    token_data = login_response.json()
+
+    # Use token to access /me endpoint
+    response = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {token_data['access_token']}"}
+    )
+
+    # Check response
+    assert response.status_code == 200
+    data = response.json()
+    assert data["username"] == username
+    assert data["id"] == user.id
+
+    # Clean up
+    db.delete(user)
+    db.commit()
+
+    print("✓ Successfully tested /me endpoint with authentication")
