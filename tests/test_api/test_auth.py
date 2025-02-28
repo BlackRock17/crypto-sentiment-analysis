@@ -111,3 +111,35 @@ def test_signup_endpoint(db: Session):
     db.commit()
 
     print("✓ Successfully tested user registration")
+
+
+def test_signup_endpoint_duplicate_username(db: Session):
+    """Test registration with duplicate username"""
+    timestamp = datetime.utcnow().timestamp()
+    username = f"dup_user_{timestamp}"
+
+    # Create a test user
+    user = create_user(
+        db=db,
+        username=username,
+        email=f"original_{timestamp}@example.com",
+        password="userpassword"
+    )
+
+    # Try to register with same username
+    user_data = {
+        "username": username,
+        "email": f"different_{timestamp}@example.com",
+        "password": "userpassword"
+    }
+
+    response = client.post("/auth/signup", json=user_data)
+
+    # Check response
+    assert response.status_code == 400
+
+    # Clean up
+    db.delete(user)
+    db.commit()
+
+    print("✓ Successfully tested duplicate username registration")
