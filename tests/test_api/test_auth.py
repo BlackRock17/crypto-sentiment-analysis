@@ -184,3 +184,13 @@ def test_me_endpoint_with_auth(db: Session):
     db.commit()
 
     print("✓ Successfully tested /me endpoint with authentication")
+
+
+def test_me_endpoint_without_auth():
+    """Test /me endpoint without authentication"""
+    response = client.get("/auth/me")
+
+    # Check response - should require authentication
+    assert response.status_code == 401
+
+    print("✓ Successfully tested /me endpoint without authentication")
