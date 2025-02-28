@@ -187,3 +187,26 @@ def test_get_api_key(db: Session, test_user: User):
     db.commit()
 
     print("✓ Successfully retrieved API key")
+
+
+def test_get_active_api_key(db: Session, test_user: User):
+    """Test retrieving an active API key"""
+    # Create a test API key
+    api_key = create_api_key(
+        db=db,
+        user_id=test_user.id,
+        name="Active API Key"
+    )
+
+    # Retrieve the active API key
+    active_key = get_active_api_key(db, api_key.key)
+
+    assert active_key is not None
+    assert active_key.id == api_key.id
+    assert active_key.user_id == test_user.id
+
+    # Clean up
+    db.delete(api_key)
+    db.commit()
+
+    print("✓ Successfully retrieved active API key")
