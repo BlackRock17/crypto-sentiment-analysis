@@ -24,35 +24,63 @@ def db():
 @pytest.fixture
 def test_user(db: Session):
     """Create a test user"""
-    # Check if test user already exists
-    existing_user = get_user_by_username(db, "tokenuser")
-    if existing_user:
-        return existing_user
+    # Generate a unique username to avoid conflicts
+    timestamp = datetime.utcnow().timestamp()
+    username = f"tokenuser_{timestamp}"
+    email = f"token_{timestamp}@example.com"
 
     # Create a new test user
     user = create_user(
         db=db,
-        username="tokenuser",
-        email="token@example.com",
+        username=username,
+        email=email,
         password="tokenpassword"
     )
 
+    db.commit()  # Ensure user is committed to DB
+    db.refresh(user)  # Refresh the user object
+
     yield user
 
-    # Clean up - we'll keep the test user for now as tokens reference it
-    # In real applications, you might want to use a transaction that rolls back
+    # Clean up - delete the test user
+    try:
+        db.delete(user)
+        db.commit()
+    except:
+        db.rollback()
 
 
 @pytest.fixture
-def test_token(db: Session, test_user: User):
+def test_token(db: Session):
     """Create a test token"""
-    token = create_user_token(db, test_user)
+    # Generate a unique username to avoid conflicts
+    timestamp = datetime.utcnow().timestamp()
+    username = f"token_user_{timestamp}"
+    email = f"token_test_{timestamp}@example.com"
+
+    # Create a new test user
+    user = create_user(
+        db=db,
+        username=username,
+        email=email,
+        password="tokenpassword"
+    )
+
+    db.commit()  # Ensure user is committed to DB
+    db.refresh(user)  # Refresh the user object
+
+    # Create token for the user
+    token = create_user_token(db, user)
 
     yield token
 
-    # Clean up
-    db.delete(token)
-    db.commit()
+    # Clean up - delete the token and user
+    try:
+        db.delete(token)
+        db.delete(user)
+        db.commit()
+    except:
+        db.rollback()
 
 
 def test_create_user_token(db: Session, test_user: User):
