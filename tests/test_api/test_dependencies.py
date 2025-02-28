@@ -98,3 +98,47 @@ def test_get_current_user_expired_token(db: Session):
     db.commit()
 
     print("✓ Successfully tested get_current_user with expired token")
+
+
+def test_get_current_active_user(db: Session):
+    """Test get_current_active_user with active and inactive users"""
+    # Create an active test user
+    timestamp = datetime.utcnow().timestamp()
+    active_username = f"active_user_{timestamp}"
+
+    active_user = create_user(
+        db=db,
+        username=active_username,
+        email=f"active_{timestamp}@example.com",
+        password="testpassword"
+    )
+
+    # Create an inactive test user
+    inactive_username = f"inactive_user_{timestamp}"
+
+    inactive_user = create_user(
+        db=db,
+        username=inactive_username,
+        email=f"inactive_{timestamp}@example.com",
+        password="testpassword"
+    )
+    inactive_user.is_active = False
+    db.commit()
+
+    # Test with active user - should pass
+    current_active_user = get_current_active_user(current_user=active_user)
+    assert current_active_user is not None
+    assert current_active_user.id == active_user.id
+
+    # Test with inactive user - should raise exception
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_active_user(current_user=inactive_user)
+
+    assert exc_info.value.status_code == 403
+
+    # Clean up
+    db.delete(active_user)
+    db.delete(inactive_user)
+    db.commit()
+
+    print("✓ Successfully tested get_current_active_user")
