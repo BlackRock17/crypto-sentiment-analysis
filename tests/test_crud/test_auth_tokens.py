@@ -70,3 +70,14 @@ def test_create_user_token(db: Session, test_user: User):
     db.commit()
 
     print("✓ Successfully created and verified user token")
+
+
+def test_get_active_token(db: Session, test_token: Token):
+    """Test retrieving an active token"""
+    token = get_active_token(db, test_token.token)
+
+    assert token is not None
+    assert token.id == test_token.id
+    assert token.user_id == test_token.user_id
+
+    print("✓ Successfully retrieved active token")
