@@ -90,3 +90,14 @@ def test_get_user_by_email(db: Session, test_user: User):
     assert user.username == test_user.username
 
     print("✓ Successfully retrieved user by email")
+
+
+def test_get_user_by_id(db: Session, test_user: User):
+    """Test retrieving a user by ID"""
+    user = get_user_by_id(db, test_user.id)
+
+    assert user is not None
+    assert user.username == test_user.username
+    assert user.email == test_user.email
+
+    print("✓ Successfully retrieved user by ID")
