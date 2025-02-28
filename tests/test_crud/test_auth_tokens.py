@@ -210,3 +210,32 @@ def test_get_active_api_key(db: Session, test_user: User):
     db.commit()
 
     print("✓ Successfully retrieved active API key")
+
+
+def test_update_api_key_usage(db: Session, test_user: User):
+    """Test updating the last used time of an API key"""
+    # Create a test API key
+    api_key = create_api_key(
+        db=db,
+        user_id=test_user.id,
+        name="Usage API Key"
+    )
+
+    # Record original last_used_at (should be None)
+    assert api_key.last_used_at is None
+
+    # Wait a moment to ensure there's a time difference
+    time.sleep(0.1)
+
+    # Update the usage
+    update_api_key_usage(db, api_key)
+
+    # Verify last_used_at was updated
+    updated_key = get_api_key(db, api_key.key)
+    assert updated_key.last_used_at is not None
+
+    # Clean up
+    db.delete(api_key)
+    db.commit()
+
+    print("✓ Successfully updated API key usage timestamp")
