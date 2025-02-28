@@ -41,3 +41,30 @@ def test_user(db: Session):
     # Clean up - remove test user
     db.delete(user)
     db.commit()
+
+
+def test_create_user(db: Session):
+    """Test creating a new user"""
+    # Create a user with unique username/email
+    username = f"testuser_{datetime.utcnow().timestamp()}"
+    email = f"test_{datetime.utcnow().timestamp()}@example.com"
+
+    user = create_user(
+        db=db,
+        username=username,
+        email=email,
+        password="testpassword"
+    )
+
+    # Verify the user was created correctly
+    assert user.username == username
+    assert user.email == email
+    assert user.is_active == True
+    assert user.is_superuser == False
+    assert verify_password("testpassword", user.hashed_password)
+
+    # Clean up
+    db.delete(user)
+    db.commit()
+
+    print("✓ Successfully created and verified user")
