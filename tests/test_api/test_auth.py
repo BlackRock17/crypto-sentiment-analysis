@@ -51,3 +51,32 @@ def test_login_endpoint_valid_credentials(db: Session):
     db.commit()
 
     print("✓ Successfully tested valid login")
+
+
+def test_login_endpoint_invalid_credentials(db: Session):
+    """Test login endpoint with invalid credentials"""
+    timestamp = datetime.utcnow().timestamp()
+    username = f"api_test_invalid_{timestamp}"
+
+    # Create a test user
+    user = create_user(
+        db=db,
+        username=username,
+        email=f"api_test_invalid_{timestamp}@example.com",
+        password="correctpassword"
+    )
+
+    # Try to log in with wrong password
+    response = client.post(
+        "/auth/token",
+        data={"username": username, "password": "wrongpassword"}
+    )
+
+    # Check response
+    assert response.status_code == 401
+
+    # Clean up
+    db.delete(user)
+    db.commit()
+
+    print("✓ Successfully tested invalid login")
