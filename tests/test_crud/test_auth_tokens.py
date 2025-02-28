@@ -164,3 +164,26 @@ def test_create_expiring_api_key(db: Session, test_user: User):
     db.commit()
 
     print("✓ Successfully created and verified expiring API key")
+
+
+def test_get_api_key(db: Session, test_user: User):
+    """Test retrieving an API key"""
+    # Create a test API key
+    api_key = create_api_key(
+        db=db,
+        user_id=test_user.id,
+        name="Retrievable API Key"
+    )
+
+    # Retrieve the API key
+    retrieved_key = get_api_key(db, api_key.key)
+
+    assert retrieved_key is not None
+    assert retrieved_key.id == api_key.id
+    assert retrieved_key.user_id == test_user.id
+
+    # Clean up
+    db.delete(api_key)
+    db.commit()
+
+    print("✓ Successfully retrieved API key")
