@@ -47,3 +47,31 @@ def auth_headers(db: Session):
     # Clean up
     db.delete(user)
     db.commit()
+
+
+def test_create_api_key(auth_headers):
+    """Test creating a new API key"""
+    headers, user = auth_headers
+
+    # Create API key data
+    api_key_data = {
+        "name": "Test API Key",
+        "expiration_days": 30
+    }
+
+    # Make the request
+    response = client.post(
+        "/auth/api-keys",
+        json=api_key_data,
+        headers=headers
+    )
+
+    # Check response
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "Test API Key"
+    assert "key" in data
+    assert "expiration_date" in data
+    assert data["is_active"] == True
+
+    print("✓ Successfully tested API key creation")
