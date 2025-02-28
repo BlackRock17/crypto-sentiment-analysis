@@ -41,3 +41,32 @@ def test_user(db: Session):
 
     # Clean up - we'll keep the test user for now as tokens reference it
     # In real applications, you might want to use a transaction that rolls back
+
+
+@pytest.fixture
+def test_token(db: Session, test_user: User):
+    """Create a test token"""
+    token = create_user_token(db, test_user)
+
+    yield token
+
+    # Clean up
+    db.delete(token)
+    db.commit()
+
+
+def test_create_user_token(db: Session, test_user: User):
+    """Test creating a user token"""
+    token = create_user_token(db, test_user)
+
+    assert token is not None
+    assert token.user_id == test_user.id
+    assert token.token_type == "bearer"
+    assert token.is_revoked == False
+    assert token.expires_at > datetime.utcnow()
+
+    # Clean up
+    db.delete(token)
+    db.commit()
+
+    print("✓ Successfully created and verified user token")
