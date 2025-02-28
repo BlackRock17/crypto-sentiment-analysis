@@ -81,3 +81,16 @@ def test_get_active_token(db: Session, test_token: Token):
     assert token.user_id == test_token.user_id
 
     print("✓ Successfully retrieved active token")
+
+
+def test_revoke_token(db: Session, test_token: Token):
+    """Test revoking a token"""
+    result = revoke_token(db, test_token.token)
+
+    assert result is True
+
+    # Verify the token is now revoked
+    token = db.query(Token).filter(Token.id == test_token.id).first()
+    assert token.is_revoked == True
+
+    print("✓ Successfully revoked token")
