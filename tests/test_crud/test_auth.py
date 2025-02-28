@@ -121,3 +121,12 @@ def test_authenticate_user_wrong_password(db: Session, test_user: User):
     assert user is None
 
     print("✓ Successfully rejected authentication with wrong password")
+
+
+def test_authenticate_user_wrong_username(db: Session):
+    """Test authenticating a non-existent user"""
+    user = authenticate_user(db, "nonexistentuser", "password")
+
+    assert user is None
+
+    print("✓ Successfully rejected authentication for non-existent user")
