@@ -94,3 +94,29 @@ def test_revoke_token(db: Session, test_token: Token):
     assert token.is_revoked == True
 
     print("✓ Successfully revoked token")
+
+
+def test_expired_token_not_active(db: Session, test_user: User):
+    """Test that an expired token is not considered active"""
+    # Create a token that's already expired
+    expiration = datetime.utcnow() - timedelta(minutes=5)
+
+    expired_token = Token(
+        token="expired_test_token",
+        token_type="bearer",
+        expires_at=expiration,
+        user_id=test_user.id
+    )
+
+    db.add(expired_token)
+    db.commit()
+
+    # Test that get_active_token doesn't return the expired token
+    active_token = get_active_token(db, "expired_test_token")
+    assert active_token is None
+
+    # Clean up
+    db.delete(expired_token)
+    db.commit()
+
+    print("✓ Successfully verified expired token is not active")
