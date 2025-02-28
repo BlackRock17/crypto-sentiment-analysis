@@ -1,14 +1,19 @@
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from src.main import app
+from src.api.auth import router as auth_router
 from src.data_processing.database import get_db
 from src.data_processing.crud.auth import create_user, get_user_by_username
 
+# Create a test application with only the auth router
+auth_test_app = FastAPI()
+auth_test_app.include_router(auth_router)
 
-client = TestClient(app)
+# Use the test application for client
+client = TestClient(auth_test_app)
 
 
 @pytest.fixture
@@ -33,7 +38,7 @@ def test_login_endpoint_valid_credentials(db: Session):
         password=password
     )
 
-    # Try to log in
+    # Try to lo gin
     response = client.post(
         "/auth/token",
         data={"username": username, "password": password}
@@ -66,7 +71,7 @@ def test_login_endpoint_invalid_credentials(db: Session):
         password="correctpassword"
     )
 
-    # Try to log in with wrong password
+    # Try to lo gin with wrong password
     response = client.post(
         "/auth/token",
         data={"username": username, "password": "wrongpassword"}
