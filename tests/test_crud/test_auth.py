@@ -112,3 +112,12 @@ def test_authenticate_user(db: Session, test_user: User):
     assert user.username == test_user.username
 
     print("✓ Successfully authenticated user with correct credentials")
+
+
+def test_authenticate_user_wrong_password(db: Session, test_user: User):
+    """Test authenticating a user with incorrect password"""
+    user = authenticate_user(db, test_user.username, "wrongpassword")
+
+    assert user is None
+
+    print("✓ Successfully rejected authentication with wrong password")
