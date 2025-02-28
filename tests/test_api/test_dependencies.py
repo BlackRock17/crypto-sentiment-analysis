@@ -142,3 +142,44 @@ def test_get_current_active_user(db: Session):
     db.commit()
 
     print("✓ Successfully tested get_current_active_user")
+
+
+def test_get_user_by_api_key(db: Session):
+    """Test get_user_by_api_key function"""
+    # Create a test user
+    timestamp = datetime.utcnow().timestamp()
+    username = f"apikey_dep_user_{timestamp}"
+
+    user = create_user(
+        db=db,
+        username=username,
+        email=f"apikey_dep_{timestamp}@example.com",
+        password="testpassword"
+    )
+
+    # Create API key for user
+    api_key = create_api_key(
+        db=db,
+        user_id=user.id,
+        name="Test API Key"
+    )
+
+    # Test get_user_by_api_key
+    api_user = get_user_by_api_key(api_key=api_key.key, db=db)
+
+    assert api_user is not None
+    assert api_user.id == user.id
+    assert api_user.username == username
+
+    # Test with invalid API key
+    with pytest.raises(HTTPException) as exc_info:
+        get_user_by_api_key(api_key="invalid_key", db=db)
+
+    assert exc_info.value.status_code == 401
+
+    # Clean up
+    db.delete(api_key)
+    db.delete(user)
+    db.commit()
+
+    print("✓ Successfully tested get_user_by_api_key")
