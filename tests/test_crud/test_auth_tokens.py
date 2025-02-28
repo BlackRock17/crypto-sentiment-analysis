@@ -142,3 +142,25 @@ def test_create_api_key(db: Session, test_user: User):
     db.commit()
 
     print("✓ Successfully created and verified API key")
+
+
+def test_create_expiring_api_key(db: Session, test_user: User):
+    """Test creating an API key with expiration"""
+    api_key = create_api_key(
+        db=db,
+        user_id=test_user.id,
+        name="Expiring API Key",
+        expiration_days=7
+    )
+
+    assert api_key is not None
+    assert api_key.user_id == test_user.id
+    assert api_key.expiration_date is not None
+    assert api_key.expiration_date > datetime.utcnow()
+    assert api_key.expiration_date < (datetime.utcnow() + timedelta(days=8))
+
+    # Clean up
+    db.delete(api_key)
+    db.commit()
+
+    print("✓ Successfully created and verified expiring API key")
