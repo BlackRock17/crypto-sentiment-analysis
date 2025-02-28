@@ -68,3 +68,14 @@ def test_create_user(db: Session):
     db.commit()
 
     print("✓ Successfully created and verified user")
+
+
+def test_get_user_by_username(db: Session, test_user: User):
+    """Test retrieving a user by username"""
+    user = get_user_by_username(db, test_user.username)
+
+    assert user is not None
+    assert user.id == test_user.id
+    assert user.email == test_user.email
+
+    print("✓ Successfully retrieved user by username")
