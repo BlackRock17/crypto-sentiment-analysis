@@ -80,3 +80,34 @@ def test_login_endpoint_invalid_credentials(db: Session):
     db.commit()
 
     print("✓ Successfully tested invalid login")
+
+
+def test_signup_endpoint(db: Session):
+    """Test user registration endpoint"""
+    timestamp = datetime.utcnow().timestamp()
+    new_username = f"new_user_{timestamp}"
+
+    user_data = {
+        "username": new_username,
+        "email": f"new_user_{timestamp}@example.com",
+        "password": "newuserpassword"
+    }
+
+    # Try to register
+    response = client.post("/auth/signup", json=user_data)
+
+    # Check response
+    assert response.status_code == 201
+    data = response.json()
+    assert data["username"] == new_username
+    assert "id" in data
+
+    # Verify user was created in DB
+    db_user = get_user_by_username(db, new_username)
+    assert db_user is not None
+
+    # Clean up
+    db.delete(db_user)
+    db.commit()
+
+    print("✓ Successfully tested user registration")
