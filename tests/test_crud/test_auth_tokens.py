@@ -239,3 +239,28 @@ def test_update_api_key_usage(db: Session, test_user: User):
     db.commit()
 
     print("✓ Successfully updated API key usage timestamp")
+
+
+def test_expired_api_key_not_active(db: Session, test_user: User):
+    """Test that an expired API key is not considered active"""
+    # Create an API key that's already expired
+    expired_api_key = ApiKey(
+        key="expired_test_api_key",
+        user_id=test_user.id,
+        name="Expired API Key",
+        expiration_date=datetime.utcnow() - timedelta(days=1),
+        is_active=True
+    )
+
+    db.add(expired_api_key)
+    db.commit()
+
+    # Test that get_active_api_key doesn't return the expired key
+    active_key = get_active_api_key(db, "expired_test_api_key")
+    assert active_key is None
+
+    # Clean up
+    db.delete(expired_api_key)
+    db.commit()
+
+    print("✓ Successfully verified expired API key is not active")
