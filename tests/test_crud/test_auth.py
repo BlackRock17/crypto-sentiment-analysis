@@ -101,3 +101,14 @@ def test_get_user_by_id(db: Session, test_user: User):
     assert user.email == test_user.email
 
     print("✓ Successfully retrieved user by ID")
+
+
+def test_authenticate_user(db: Session, test_user: User):
+    """Test authenticating a user with correct credentials"""
+    user = authenticate_user(db, test_user.username, "testpassword")
+
+    assert user is not None
+    assert user.id == test_user.id
+    assert user.username == test_user.username
+
+    print("✓ Successfully authenticated user with correct credentials")
