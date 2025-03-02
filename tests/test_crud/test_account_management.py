@@ -97,3 +97,30 @@ def test_update_user_duplicate_username(db: Session, test_user):
     db.commit()
 
     print("✓ Successfully prevented duplicate username update")
+
+
+def test_update_user_duplicate_email(db: Session, test_user):
+    """Test updating a user with a duplicate email"""
+    # Create another user
+    timestamp = datetime.utcnow().timestamp()
+    other_username = f"other_user_{timestamp}"
+    other_email = f"other_{timestamp}@example.com"
+
+    other_user = create_user(
+        db=db,
+        username=other_username,
+        email=other_email,
+        password="otherpassword"
+    )
+
+    # Try to update test_user with other_user's email
+    with pytest.raises(ValueError) as exc_info:
+        update_user(db, test_user.id, email=other_email)
+
+    assert "Email already taken" in str(exc_info.value)
+
+    # Clean up
+    db.delete(other_user)
+    db.commit()
+
+    print("✓ Successfully prevented duplicate email update")
