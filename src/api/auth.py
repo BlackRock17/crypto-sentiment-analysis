@@ -1,18 +1,20 @@
 from datetime import datetime, timedelta
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from config.settings import ACCESS_TOKEN_EXPIRE_MINUTES
 from src.data_processing.crud.auth import (
     create_user, authenticate_user, create_api_key,
-    get_user_by_username, get_user_by_email
+    get_user_by_username, get_user_by_email, create_password_reset,
+    get_valid_password_reset, mark_password_reset_used, update_user_password
 )
 from src.data_processing.database import get_db
 from src.schemas.auth import (
-    UserCreate, UserResponse, Token, ApiKeyCreate, ApiKeyResponse
+    UserCreate, UserResponse, Token, ApiKeyCreate, ApiKeyResponse,
+    PasswordResetRequest, PasswordResetConfirm, PasswordChange
 )
 from src.security.auth import get_current_active_user, get_current_superuser
 from src.security.utils import create_user_token
@@ -132,3 +134,35 @@ async def read_users(
     """
     users = db.query(User).offset(skip).limit(limit).all()
     return users
+
+
+@router.post("/password-reset/request", status_code=status.HTTP_202_ACCEPTED)
+async def request_password_reset(
+        reset_request: PasswordResetRequest,
+        background_tasks: BackgroundTasks,
+        db: Session = Depends(get_db)
+):
+    """
+    Request a password reset link
+
+    This endpoint will send a password reset email with a unique reset code
+    """
+    # Find user by email
+    user = get_user_by_email(db, reset_request.email)
+
+    # Always return success even if email doesn't exist (security best practice)
+    if not user:
+        return {"message": "If this email exists in our system, you will receive a password reset link"}
+
+    # Create password reset request
+    reset = create_password_reset(db, user.id)
+
+    # In a real-world application, here you would send an email with the reset code
+    # For this example, we'll just return the reset code (in a real app, don't do this!)
+    # background_tasks.add_task(send_password_reset_email, user.email, reset.reset_code)
+
+    return {
+        "message": "If this email exists in our system, you will receive a password reset link",
+        "reset_code": reset.reset_code  # Remove this in production!
+    }
+
