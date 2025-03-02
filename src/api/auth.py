@@ -17,7 +17,7 @@ from src.schemas.auth import (
     PasswordResetRequest, PasswordResetConfirm, PasswordChange
 )
 from src.security.auth import get_current_active_user, get_current_superuser
-from src.security.utils import create_user_token
+from src.security.utils import create_user_token, verify_password, get_password_hash
 from src.data_processing.models.auth import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -199,3 +199,24 @@ async def confirm_password_reset(
     return {"message": "Password has been reset successfully"}
 
 
+@router.post("/password-change", status_code=status.HTTP_200_OK)
+async def change_password(
+        password_change: PasswordChange,
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Change password for the currently logged in user
+    """
+    # Verify current password
+    if not verify_password(password_change.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+
+    # Update password
+    current_user.hashed_password = get_password_hash(password_change.new_password)
+    db.commit()
+
+    return {"message": "Password changed successfully"}
