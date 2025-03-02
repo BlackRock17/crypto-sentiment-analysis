@@ -136,3 +136,41 @@ def test_mark_password_reset_used(db: Session, test_user):
     db.commit()
 
     print("✓ Successfully marked password reset as used")
+
+
+def test_full_password_reset_flow(db: Session, test_user):
+    """Test the full password reset flow"""
+    user, original_password = test_user
+
+    # 1. Create a password reset
+    reset = create_password_reset(db, user.id)
+
+    # 2. Verify the reset code is valid
+    valid_reset = get_valid_password_reset(db, reset.reset_code)
+    assert valid_reset is not None
+
+    # 3. Update the password
+    new_password = "completelynewpassword"
+    update_result = update_user_password(db, user.id, new_password)
+    assert update_result is True
+
+    # 4. Mark the reset code as used
+    mark_result = mark_password_reset_used(db, reset.reset_code)
+    assert mark_result is True
+
+    # 5. Verify the reset code is no longer valid
+    assert get_valid_password_reset(db, reset.reset_code) is None
+
+    # 6. Verify authentication works with new password
+    authenticated_user = authenticate_user(db, user.username, new_password)
+    assert authenticated_user is not None
+    assert authenticated_user.id == user.id
+
+    # 7. Verify old password doesn't work
+    assert authenticate_user(db, user.username, original_password) is None
+
+    # Clean up
+    db.delete(reset)
+    db.commit()
+
+    print("✓ Successfully tested full password reset flow")
