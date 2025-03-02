@@ -63,3 +63,24 @@ def test_create_password_reset(db: Session, test_user):
     db.commit()
 
     print("✓ Successfully created and verified password reset")
+
+
+def test_get_valid_password_reset(db: Session, test_user):
+    """Test retrieving a valid password reset"""
+    user, _ = test_user
+
+    # Create a password reset
+    reset = create_password_reset(db, user.id)
+
+    # Test retrieving it
+    retrieved_reset = get_valid_password_reset(db, reset.reset_code)
+
+    assert retrieved_reset is not None
+    assert retrieved_reset.id == reset.id
+    assert retrieved_reset.user_id == user.id
+
+    # Clean up
+    db.delete(reset)
+    db.commit()
+
+    print("✓ Successfully retrieved valid password reset")
