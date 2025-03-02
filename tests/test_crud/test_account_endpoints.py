@@ -134,3 +134,33 @@ def test_password_reset_confirm(db: Session, test_user):
     db.commit()
 
     print("✓ Successfully tested password reset confirmation")
+
+
+def test_password_change(test_user, auth_headers):
+    """Test changing password when logged in"""
+    user, username, _, current_password = test_user
+
+    # Change password
+    new_password = "updatedpassword123"
+    response = client.post(
+        "/auth/password-change",
+        json={
+            "current_password": current_password,
+            "new_password": new_password
+        },
+        headers=auth_headers
+    )
+
+    # Check response
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+
+    # Verify login works with new password
+    login_response = client.post(
+        "/auth/token",
+        data={"username": username, "password": new_password}
+    )
+    assert login_response.status_code == 200
+
+    print("✓ Successfully tested password change")
