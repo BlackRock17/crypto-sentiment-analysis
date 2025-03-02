@@ -75,3 +75,22 @@ class PasswordChange(BaseModel):
     """Schema for changing password (when user is logged in)"""
     current_password: str
     new_password: str = Field(..., min_length=8)
+
+
+class UserUpdate(BaseModel):
+    """Schema for updating user information"""
+    email: Optional[EmailStr] = None
+    username: Optional[str] = None
+
+
+class UserProfileResponse(UserResponse):
+    """Extended user response schema with profile information"""
+    last_login: Optional[datetime] = None
+    api_keys_count: int = 0
+    account_created_at: datetime
+
+
+class AccountDeactivateRequest(BaseModel):
+    """Schema for account deactivation"""
+    password: str
+    reason: Optional[str] = None
