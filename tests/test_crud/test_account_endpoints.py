@@ -164,3 +164,26 @@ def test_password_change(test_user, auth_headers):
     assert login_response.status_code == 200
 
     print("✓ Successfully tested password change")
+
+
+def test_get_user_profile(auth_headers):
+    """Test getting user profile"""
+    response = client.get(
+        "/auth/profile",
+        headers=auth_headers
+    )
+
+    # Check response
+    assert response.status_code == 200
+    data = response.json()
+
+    # Verify profile data
+    assert "id" in data
+    assert "username" in data
+    assert "email" in data
+    assert "is_active" in data
+    assert "api_keys_count" in data
+    assert "last_login" in data
+    assert "account_created_at" in data
+
+    print("✓ Successfully tested get user profile")
