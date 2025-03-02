@@ -21,3 +21,15 @@ class ForbiddenException(HTTPException):
     """Exception for 403 Forbidden errors"""
     def __init__(self, detail="Insufficient permissions"):
         super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
+class NotFoundException(HTTPException):
+    """Exception for 404 Not Found errors"""
+    def __init__(self, detail="Resource not found"):
+        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
+
+class ConflictException(HTTPException):
+    """Exception for 409 Conflict errors"""
+    def __init__(self, detail="Resource conflict"):
+        super().__init__(status_code=status.HTTP_409_CONFLICT, detail=detail)
