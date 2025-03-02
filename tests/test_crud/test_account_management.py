@@ -124,3 +124,17 @@ def test_update_user_duplicate_email(db: Session, test_user):
     db.commit()
 
     print("✓ Successfully prevented duplicate email update")
+
+
+def test_deactivate_user(db: Session, test_user):
+    """Test deactivating a user account"""
+    # Deactivate the user
+    result = deactivate_user(db, test_user.id)
+
+    assert result is True
+
+    # Verify the user is now inactive
+    user = get_user_by_id(db, test_user.id)
+    assert user.is_active == False
+
+    print("✓ Successfully deactivated user account")
