@@ -33,3 +33,20 @@ class ConflictException(HTTPException):
     """Exception for 409 Conflict errors"""
     def __init__(self, detail="Resource conflict"):
         super().__init__(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+
+class RateLimitException(HTTPException):
+    """Exception for 429 Too Many Requests errors"""
+    def __init__(self, detail="Rate limit exceeded", retry_after=60):
+        super().__init__(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=detail,
+            headers={"Retry-After": str(retry_after)}
+        )
+
+
+class ServerErrorException(HTTPException):
+    """Exception for 500 Internal Server Error"""
+    def __init__(self, detail="Internal server error"):
+        super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
+
