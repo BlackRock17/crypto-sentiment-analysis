@@ -40,3 +40,33 @@ def test_user(db: Session):
         db.commit()
     except:
         db.rollback()
+
+
+def test_update_user(db: Session, test_user):
+    """Test updating a user's information"""
+    # Update username
+    new_username = f"updated_{test_user.username}"
+    updated_user = update_user(db, test_user.id, username=new_username)
+
+    assert updated_user is not None
+    assert updated_user.username == new_username
+    assert updated_user.email == test_user.email
+
+    # Update email
+    new_email = f"updated_{test_user.email}"
+    updated_user = update_user(db, test_user.id, email=new_email)
+
+    assert updated_user is not None
+    assert updated_user.username == new_username  # From previous update
+    assert updated_user.email == new_email
+
+    # Update both
+    final_username = f"final_{test_user.username}"
+    final_email = f"final_{test_user.email}"
+    updated_user = update_user(db, test_user.id, username=final_username, email=final_email)
+
+    assert updated_user is not None
+    assert updated_user.username == final_username
+    assert updated_user.email == final_email
+
+    print("✓ Successfully updated user information")
