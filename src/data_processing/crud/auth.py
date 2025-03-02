@@ -368,3 +368,25 @@ def update_user(db: Session, user_id: int, username: Optional[str] = None, email
     db.refresh(user)
 
     return user
+
+
+def deactivate_user(db: Session, user_id: int) -> bool:
+    """
+    Deactivate a user account
+
+    Args:
+        db: Database session
+        user_id: User ID
+
+    Returns:
+        True if successful, False if user not found
+    """
+    user = get_user_by_id(db, user_id)
+
+    if not user:
+        return False
+
+    user.is_active = False
+    db.commit()
+
+    return True
