@@ -42,3 +42,24 @@ def test_user(db: Session):
     # Clean up - delete the test user
     db.delete(user)
     db.commit()
+
+
+def test_create_password_reset(db: Session, test_user):
+    """Test creating a password reset request"""
+    user, _ = test_user
+
+    # Create a password reset
+    reset = create_password_reset(db, user.id)
+
+    assert reset is not None
+    assert reset.user_id == user.id
+    assert reset.reset_code is not None
+    assert len(reset.reset_code) > 0
+    assert reset.is_used == False
+    assert reset.expires_at > datetime.utcnow()
+
+    # Clean up
+    db.delete(reset)
+    db.commit()
+
+    print("✓ Successfully created and verified password reset")
