@@ -110,3 +110,29 @@ def test_used_password_reset_not_valid(db: Session, test_user):
     db.commit()
 
     print("✓ Successfully verified used reset code is not valid")
+
+
+def test_mark_password_reset_used(db: Session, test_user):
+    """Test marking a password reset as used"""
+    user, _ = test_user
+
+    # Create a password reset
+    reset = create_password_reset(db, user.id)
+
+    # Mark it as used
+    result = mark_password_reset_used(db, reset.reset_code)
+
+    assert result is True
+
+    # Verify it's marked as used
+    db.refresh(reset)
+    assert reset.is_used == True
+
+    # Verify it's no longer considered valid
+    assert get_valid_password_reset(db, reset.reset_code) is None
+
+    # Clean up
+    db.delete(reset)
+    db.commit()
+
+    print("✓ Successfully marked password reset as used")
