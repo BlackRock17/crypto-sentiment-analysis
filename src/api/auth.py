@@ -272,3 +272,35 @@ async def update_user_profile(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
+
+@router.post("/deactivate", status_code=status.HTTP_200_OK)
+async def deactivate_account(
+        deactivate_request: AccountDeactivateRequest,
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Deactivate the current user's account
+    """
+    # Verify password
+    if not verify_password(deactivate_request.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is incorrect"
+        )
+
+    # Deactivate account
+    success = deactivate_user(db, current_user.id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to deactivate account"
+        )
+
+    # In a real application, you might want to log the reason for deactivation
+    # if deactivate_request.reason:
+    #     log_account_deactivation(user_id=current_user.id, reason=deactivate_request.reason)
+
+    return {"message": "Account deactivated successfully"}
