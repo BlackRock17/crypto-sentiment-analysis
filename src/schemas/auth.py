@@ -58,3 +58,20 @@ class ApiKeyResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class PasswordResetRequest(BaseModel):
+    """Schema for requesting a password reset"""
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    """Schema for confirming a password reset"""
+    reset_code: str
+    new_password: str = Field(..., min_length=8)
+
+
+class PasswordChange(BaseModel):
+    """Schema for changing password (when user is logged in)"""
+    current_password: str
+    new_password: str = Field(..., min_length=8)
