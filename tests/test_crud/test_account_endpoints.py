@@ -211,3 +211,26 @@ def test_update_user_profile(db: Session, test_user, auth_headers):
     assert user.username == new_username
 
     print("✓ Successfully tested update user profile")
+
+
+def test_deactivate_account(db: Session, test_user, auth_headers):
+    """Test deactivating user account"""
+    user, _, _, password = test_user
+
+    # Deactivate account
+    response = client.post(
+        "/auth/deactivate",
+        json={"password": password},
+        headers=auth_headers
+    )
+
+    # Check response
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+
+    # Verify account is deactivated
+    db.refresh(user)
+    assert user.is_active == False
+
+    print("✓ Successfully tested account deactivation")
