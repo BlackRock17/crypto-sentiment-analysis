@@ -59,3 +59,33 @@ def auth_headers(test_user):
     headers = {"Authorization": f"Bearer {token_data['access_token']}"}
 
     return headers
+
+
+def test_password_reset_request(db: Session, test_user):
+    """Test requesting a password reset"""
+    _, _, email, _ = test_user
+
+    # Request password reset
+    response = client.post(
+        "/auth/password-reset/request",
+        json={"email": email}
+    )
+
+    # Check response
+    assert response.status_code == 202
+    data = response.json()
+    assert "message" in data
+    assert "reset_code" in data  # Note: only in development mode
+
+    # Verify reset code was created in DB
+    reset_code = data["reset_code"]
+    reset = get_valid_password_reset(db, reset_code)
+
+    assert reset is not None
+    assert reset.user_id == test_user[0].id
+
+    # Clean up
+    db.delete(reset)
+    db.commit()
+
+    print("✓ Successfully tested password reset request")
