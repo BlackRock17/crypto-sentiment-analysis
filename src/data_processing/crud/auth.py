@@ -306,3 +306,26 @@ def mark_password_reset_used(db: Session, reset_code: str) -> bool:
     db.commit()
 
     return True
+
+
+def update_user_password(db: Session, user_id: int, new_password: str) -> bool:
+    """
+    Update a user's password
+
+    Args:
+        db: Database session
+        user_id: User ID
+        new_password: New password (will be hashed)
+
+    Returns:
+        True if successful, False if user not found
+    """
+    user = get_user_by_id(db, user_id)
+
+    if not user:
+        return False
+
+    user.hashed_password = get_password_hash(new_password)
+    db.commit()
+
+    return True
