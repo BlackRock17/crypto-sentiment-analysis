@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
@@ -9,12 +9,14 @@ from config.settings import ACCESS_TOKEN_EXPIRE_MINUTES
 from src.data_processing.crud.auth import (
     create_user, authenticate_user, create_api_key,
     get_user_by_username, get_user_by_email, create_password_reset,
-    get_valid_password_reset, mark_password_reset_used, update_user_password
+    get_valid_password_reset, mark_password_reset_used, update_user_password,
+    update_user, deactivate_user, get_user_api_keys_count, get_user_last_login
 )
 from src.data_processing.database import get_db
 from src.schemas.auth import (
     UserCreate, UserResponse, Token, ApiKeyCreate, ApiKeyResponse,
-    PasswordResetRequest, PasswordResetConfirm, PasswordChange
+    PasswordResetRequest, PasswordResetConfirm, PasswordChange,
+    UserUpdate, UserProfileResponse, AccountDeactivateRequest
 )
 from src.security.auth import get_current_active_user, get_current_superuser
 from src.security.utils import create_user_token, verify_password, get_password_hash
@@ -220,3 +222,29 @@ async def change_password(
     db.commit()
 
     return {"message": "Password changed successfully"}
+
+
+@router.get("/profile", response_model=UserProfileResponse)
+async def get_user_profile(
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Get detailed profile information for the current user
+    """
+    # Get additional user information
+    api_keys_count = get_user_api_keys_count(db, current_user.id)
+    last_login = get_user_last_login(db, current_user.id)
+
+    # Create response with extended information
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "is_active": current_user.is_active,
+        "is_superuser": current_user.is_superuser,
+        "created_at": current_user.created_at,
+        "last_login": last_login,
+        "api_keys_count": api_keys_count,
+        "account_created_at": current_user.created_at
+    }
