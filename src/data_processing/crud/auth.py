@@ -4,7 +4,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 
-from src.data_processing.models.auth import User, Token, ApiKey
+from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
 from src.security.utils import get_password_hash, verify_password
 
 
@@ -228,3 +228,41 @@ def update_api_key_usage(db: Session, api_key: ApiKey) -> None:
     """
     api_key.last_used_at = datetime.utcnow()
     db.commit()
+
+
+def create_password_reset(db: Session, user_id: int) -> PasswordReset:
+    """
+    Creates a password reset request
+
+    Args:
+        db: Database session
+        user_id: The user ID for whom to create the reset
+
+    Returns:
+        Newly created PasswordReset object
+    """
+    # First, invalidate any existing reset codes for this user
+    db.query(PasswordReset).filter(
+        PasswordReset.user_id == user_id,
+        PasswordReset.is_used == False
+    ).update({"is_used": True})
+
+    # Generate a unique reset code
+    import secrets
+    reset_code = secrets.token_urlsafe(32)
+
+    # Set expiration (24 hours from now)
+    expires_at = datetime.utcnow() + timedelta(hours=24)
+
+    # Create new password reset record
+    db_reset = PasswordReset(
+        user_id=user_id,
+        reset_code=reset_code,
+        expires_at=expires_at
+    )
+
+    db.add(db_reset)
+    db.commit()
+    db.refresh(db_reset)
+
+    return db_reset
