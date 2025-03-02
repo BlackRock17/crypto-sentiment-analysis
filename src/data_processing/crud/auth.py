@@ -329,3 +329,42 @@ def update_user_password(db: Session, user_id: int, new_password: str) -> bool:
     db.commit()
 
     return True
+
+
+def update_user(db: Session, user_id: int, username: Optional[str] = None, email: Optional[str] = None) -> Optional[
+    User]:
+    """
+    Update a user's information
+
+    Args:
+        db: Database session
+        user_id: User ID
+        username: New username (optional)
+        email: New email (optional)
+
+    Returns:
+        Updated User object or None if user not found
+    """
+    user = get_user_by_id(db, user_id)
+
+    if not user:
+        return None
+
+    if username is not None:
+        # Check if username is already taken
+        existing = get_user_by_username(db, username)
+        if existing and existing.id != user_id:
+            raise ValueError("Username already taken")
+        user.username = username
+
+    if email is not None:
+        # Check if email is already taken
+        existing = get_user_by_email(db, email)
+        if existing and existing.id != user_id:
+            raise ValueError("Email already taken")
+        user.email = email
+
+    db.commit()
+    db.refresh(user)
+
+    return user
