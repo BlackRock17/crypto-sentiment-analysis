@@ -165,6 +165,29 @@ def test_mark_password_reset_used(db: Session, test_user):
     print("✓ Successfully marked password reset as used")
 
 
+def test_update_user_password(db: Session, test_user):
+    """Test updating a user's password"""
+    user, original_password = test_user
+
+    # Update the password
+    new_password = "newpassword123"
+    result = update_user_password(db, user.id, new_password)
+
+    assert result is True
+
+    # Verify the password was updated
+    updated_user = get_user_by_id(db, user.id)
+    assert verify_password(new_password, updated_user.hashed_password)
+    assert not verify_password(original_password, updated_user.hashed_password)
+
+    # Verify authentication works with new password
+    authenticated_user = authenticate_user(db, user.username, new_password)
+    assert authenticated_user is not None
+    assert authenticated_user.id == user.id
+
+    print("✓ Successfully updated user password")
+
+
 def test_full_password_reset_flow(db: Session, test_user):
     """Test the full password reset flow"""
     user, original_password = test_user
