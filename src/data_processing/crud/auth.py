@@ -390,3 +390,20 @@ def deactivate_user(db: Session, user_id: int) -> bool:
     db.commit()
 
     return True
+
+
+def get_user_api_keys_count(db: Session, user_id: int) -> int:
+    """
+    Get the count of active API keys for a user
+
+    Args:
+        db: Database session
+        user_id: User ID
+
+    Returns:
+        Count of active API keys
+    """
+    return db.query(ApiKey).filter(
+        ApiKey.user_id == user_id,
+        ApiKey.is_active == True
+    ).count()
