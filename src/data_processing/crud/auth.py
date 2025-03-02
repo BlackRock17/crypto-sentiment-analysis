@@ -407,3 +407,21 @@ def get_user_api_keys_count(db: Session, user_id: int) -> int:
         ApiKey.user_id == user_id,
         ApiKey.is_active == True
     ).count()
+
+
+def get_user_last_login(db: Session, user_id: int) -> Optional[datetime]:
+    """
+    Get the last login time for a user based on token creation
+
+    Args:
+        db: Database session
+        user_id: User ID
+
+    Returns:
+        Datetime of last login or None if no logins
+    """
+    latest_token = db.query(Token).filter(
+        Token.user_id == user_id
+    ).order_by(Token.created_at.desc()).first()
+
+    return latest_token.created_at if latest_token else None
