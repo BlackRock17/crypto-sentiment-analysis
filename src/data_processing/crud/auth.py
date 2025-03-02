@@ -284,3 +284,25 @@ def get_valid_password_reset(db: Session, reset_code: str) -> Optional[PasswordR
         PasswordReset.is_used == False,
         PasswordReset.expires_at > datetime.utcnow()
     ).first()
+
+
+def mark_password_reset_used(db: Session, reset_code: str) -> bool:
+    """
+    Mark a password reset code as used
+
+    Args:
+        db: Database session
+        reset_code: The reset code to mark as used
+
+    Returns:
+        True if successful, False if reset code not found
+    """
+    db_reset = db.query(PasswordReset).filter(PasswordReset.reset_code == reset_code).first()
+
+    if not db_reset:
+        return False
+
+    db_reset.is_used = True
+    db.commit()
+
+    return True
