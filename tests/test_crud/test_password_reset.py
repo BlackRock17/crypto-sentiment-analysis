@@ -86,6 +86,33 @@ def test_get_valid_password_reset(db: Session, test_user):
     print("✓ Successfully retrieved valid password reset")
 
 
+def test_expired_password_reset_not_valid(db: Session, test_user):
+    """Test that an expired reset code is not considered valid"""
+    user, _ = test_user
+
+    # Create an expired password reset
+    expiration = datetime.utcnow() - timedelta(hours=1)  # Expired 1 hour ago
+
+    reset = PasswordReset(
+        user_id=user.id,
+        reset_code="expired_test_reset_code",
+        expires_at=expiration
+    )
+
+    db.add(reset)
+    db.commit()
+
+    # Test that it's not considered valid
+    retrieved_reset = get_valid_password_reset(db, "expired_test_reset_code")
+    assert retrieved_reset is None
+
+    # Clean up
+    db.delete(reset)
+    db.commit()
+
+    print("✓ Successfully verified expired reset code is not valid")
+
+
 def test_used_password_reset_not_valid(db: Session, test_user):
     """Test that a used reset code is not considered valid"""
     user, _ = test_user
