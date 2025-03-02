@@ -166,3 +166,36 @@ async def request_password_reset(
         "reset_code": reset.reset_code  # Remove this in production!
     }
 
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_200_OK)
+async def confirm_password_reset(
+        reset_confirm: PasswordResetConfirm,
+        db: Session = Depends(get_db)
+):
+    """
+    Confirm a password reset with the reset code and set a new password
+    """
+    # Find valid reset request
+    reset = get_valid_password_reset(db, reset_confirm.reset_code)
+
+    if not reset:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset code"
+        )
+
+    # Update user's password
+    success = update_user_password(db, reset.user_id, reset_confirm.new_password)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update password"
+        )
+
+    # Mark reset code as used
+    mark_password_reset_used(db, reset_confirm.reset_code)
+
+    return {"message": "Password has been reset successfully"}
+
+
