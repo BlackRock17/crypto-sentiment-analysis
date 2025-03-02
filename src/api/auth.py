@@ -18,6 +18,10 @@ from src.schemas.auth import (
     PasswordResetRequest, PasswordResetConfirm, PasswordChange,
     UserUpdate, UserProfileResponse, AccountDeactivateRequest
 )
+from src.exceptions import (
+    BadRequestException, UnauthorizedException, ForbiddenException,
+    NotFoundException, ConflictException, ServerErrorException
+)
 from src.security.auth import get_current_active_user, get_current_superuser
 from src.security.utils import create_user_token, verify_password, get_password_hash
 from src.data_processing.models.auth import User
@@ -36,19 +40,11 @@ async def login_for_access_token(
     # Authenticate user
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise UnauthorizedException(detail="Incorrect username or password")
 
     # Check if user is active
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is disabled",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ForbiddenException(detail="User account is disabled")
 
     # Create access token
     token = create_user_token(db, user)
@@ -71,18 +67,12 @@ async def register_user(
     # Check if username already exists
     existing_user = get_user_by_username(db, user_data.username)
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered"
-        )
+        raise BadRequestException(detail="Username already registered")
 
     # Check if email already exists
     existing_email = get_user_by_email(db, user_data.email)
     if existing_email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
+        raise BadRequestException(detail="Email already registered")
 
     # Create new user
     user = create_user(
@@ -181,19 +171,13 @@ async def confirm_password_reset(
     reset = get_valid_password_reset(db, reset_confirm.reset_code)
 
     if not reset:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired reset code"
-        )
+        raise BadRequestException(detail="Invalid or expired reset code")
 
     # Update user's password
     success = update_user_password(db, reset.user_id, reset_confirm.new_password)
 
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update password"
-        )
+        raise ServerErrorException(detail="Failed to update password")
 
     # Mark reset code as used
     mark_password_reset_used(db, reset_confirm.reset_code)
@@ -212,10 +196,7 @@ async def change_password(
     """
     # Verify current password
     if not verify_password(password_change.current_password, current_user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect"
-        )
+        raise BadRequestException(detail="Current password is incorrect")
 
     # Update password
     current_user.hashed_password = get_password_hash(password_change.new_password)
@@ -268,10 +249,7 @@ async def update_user_profile(
         )
         return updated_user
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise BadRequestException()
 
 
 @router.post("/deactivate", status_code=status.HTTP_200_OK)
@@ -285,19 +263,13 @@ async def deactivate_account(
     """
     # Verify password
     if not verify_password(deactivate_request.password, current_user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password is incorrect"
-        )
+        raise BadRequestException(detail="Current password is incorrect")
 
     # Deactivate account
     success = deactivate_user(db, current_user.id)
 
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to deactivate account"
-        )
+        raise ServerErrorException(detail="Failed to deactivate account")
 
     # In a real application, you might want to log the reason for deactivation
     # if deactivate_request.reason:

@@ -49,4 +49,3 @@ class ServerErrorException(HTTPException):
     """Exception for 500 Internal Server Error"""
     def __init__(self, detail="Internal server error"):
         super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
-
