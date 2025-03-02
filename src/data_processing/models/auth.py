@@ -18,6 +18,7 @@ class User(Base):
 
     # relations
     tokens = relationship("Token", back_populates="user", cascade="all, delete-orphan")
+    password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
 
 
 class Token(Base):
@@ -46,6 +47,20 @@ class ApiKey(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     last_used_at = Column(DateTime, nullable=True)
     expiration_date = Column(DateTime, nullable=True)
+
+    # relations
+    user = relationship("User")
+
+
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    reset_code = Column(String(64), unique=True, index=True, nullable=False)
+    is_used = Column(Boolean, default=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # relations
     user = relationship("User")
