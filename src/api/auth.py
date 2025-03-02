@@ -248,3 +248,27 @@ async def get_user_profile(
         "api_keys_count": api_keys_count,
         "account_created_at": current_user.created_at
     }
+
+
+@router.put("/profile", response_model=UserResponse)
+async def update_user_profile(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update profile information for the current user
+    """
+    try:
+        updated_user = update_user(
+            db=db,
+            user_id=current_user.id,
+            username=user_update.username,
+            email=user_update.email
+        )
+        return updated_user
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
