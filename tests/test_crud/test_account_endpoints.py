@@ -187,3 +187,27 @@ def test_get_user_profile(auth_headers):
     assert "account_created_at" in data
 
     print("✓ Successfully tested get user profile")
+
+
+def test_update_user_profile(db: Session, test_user, auth_headers):
+    """Test updating user profile"""
+    user, _, _, _ = test_user
+
+    # Update profile
+    new_username = f"updated_{user.username}"
+    response = client.put(
+        "/auth/profile",
+        json={"username": new_username},
+        headers=auth_headers
+    )
+
+    # Check response
+    assert response.status_code == 200
+    data = response.json()
+    assert data["username"] == new_username
+
+    # Verify change in DB
+    db.refresh(user)
+    assert user.username == new_username
+
+    print("✓ Successfully tested update user profile")
