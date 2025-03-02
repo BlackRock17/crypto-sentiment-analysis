@@ -138,3 +138,39 @@ def test_deactivate_user(db: Session, test_user):
     assert user.is_active == False
 
     print("✓ Successfully deactivated user account")
+
+
+def test_get_user_api_keys_count(db: Session, test_user):
+    """Test getting the count of a user's API keys"""
+    # Initially, there should be no API keys
+    count = get_user_api_keys_count(db, test_user.id)
+    assert count == 0
+
+    # Create some API keys
+    api_keys = []
+    for i in range(3):
+        key = create_api_key(
+            db=db,
+            user_id=test_user.id,
+            name=f"Test Key {i}"
+        )
+        api_keys.append(key)
+
+    # Check count
+    count = get_user_api_keys_count(db, test_user.id)
+    assert count == 3
+
+    # Deactivate one key
+    api_keys[0].is_active = False
+    db.commit()
+
+    # Check count again (should be 2)
+    count = get_user_api_keys_count(db, test_user.id)
+    assert count == 2
+
+    # Clean up
+    for key in api_keys:
+        db.delete(key)
+    db.commit()
+
+    print("✓ Successfully counted active API keys")
