@@ -266,3 +266,21 @@ def create_password_reset(db: Session, user_id: int) -> PasswordReset:
     db.refresh(db_reset)
 
     return db_reset
+
+
+def get_valid_password_reset(db: Session, reset_code: str) -> Optional[PasswordReset]:
+    """
+    Get a valid password reset request by its code
+
+    Args:
+        db: Database session
+        reset_code: The unique reset code
+
+    Returns:
+        PasswordReset object if valid and not expired, otherwise None
+    """
+    return db.query(PasswordReset).filter(
+        PasswordReset.reset_code == reset_code,
+        PasswordReset.is_used == False,
+        PasswordReset.expires_at > datetime.utcnow()
+    ).first()
