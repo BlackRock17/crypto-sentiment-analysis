@@ -89,3 +89,48 @@ def test_password_reset_request(db: Session, test_user):
     db.commit()
 
     print("✓ Successfully tested password reset request")
+
+
+def test_password_reset_confirm(db: Session, test_user):
+    """Test confirming a password reset"""
+    user, username, _, original_password = test_user
+
+    # Create a password reset
+    reset = create_password_reset(db, user.id)
+
+    # Confirm password reset
+    new_password = "newpassword123"
+    response = client.post(
+        "/auth/password-reset/confirm",
+        json={
+            "reset_code": reset.reset_code,
+            "new_password": new_password
+        }
+    )
+
+    # Check response
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+
+    # Verify password was changed
+    db.refresh(user)
+    assert verify_password(new_password, user.hashed_password)
+    assert not verify_password(original_password, user.hashed_password)
+
+    # Verify reset code is marked as used
+    db.refresh(reset)
+    assert reset.is_used == True
+
+    # Verify login works with new password
+    login_response = client.post(
+        "/auth/token",
+        data={"username": username, "password": new_password}
+    )
+    assert login_response.status_code == 200
+
+    # Clean up
+    db.delete(reset)
+    db.commit()
+
+    print("✓ Successfully tested password reset confirmation")
