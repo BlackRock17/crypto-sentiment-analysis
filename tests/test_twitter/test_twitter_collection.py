@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from src.data_processing.database import get_db
 from src.data_collection.twitter.client import TwitterAPIClient
 from src.data_collection.twitter.service import TwitterCollectionService
-from src.data_collection.tasks.twitter_tasks import collect_recent_tweets
+from src.data_collection.tasks.twitter_tasks import collect_influencer_tweets
 
 
 @pytest.fixture
@@ -42,8 +42,8 @@ def test_twitter_connection(db: Session):
         pytest.skip("Twitter API connection failed - check credentials")
 
 
-def test_collect_tweets(db: Session):
-    """Test collecting tweets"""
+def test_collect_influencer_tweets(db: Session):
+    """Test collecting tweets from influencers"""
     service = TwitterCollectionService(db)
 
     # Skip if connection test fails
@@ -51,20 +51,20 @@ def test_collect_tweets(db: Session):
         pytest.skip("Twitter API connection failed - check credentials")
 
     # Collect a small number of tweets for testing
-    tweets_stored, mentions_found = service.collect_and_store_tweets(limit=5)
+    tweets_stored, mentions_found = service.collect_and_store_influencer_tweets(limit_per_user=2)
 
     assert tweets_stored >= 0
     print(f"✓ Successfully collected {tweets_stored} tweets with {mentions_found} token mentions")
 
 
-def test_collect_recent_tweets_task():
-    """Test the collect_recent_tweets task"""
-    result = collect_recent_tweets(limit=5)
+def test_collect_influencer_tweets_task():
+    """Test the collect_influencer_tweets task"""
+    result = collect_influencer_tweets(limit_per_user=2)
 
     if result:
-        print("✓ Twitter collection task completed successfully")
+        print("✓ Influencer tweets collection task completed successfully")
     else:
-        pytest.skip("Twitter collection task failed - check logs for details")
+        pytest.skip("Influencer tweets collection task failed - check logs for details")
 
 
 if __name__ == "__main__":
@@ -78,11 +78,11 @@ if __name__ == "__main__":
         print("\nTesting Twitter API connection...")
         test_twitter_connection(db)
 
-        print("\nTesting tweet collection...")
-        test_collect_tweets(db)
+        print("\nTesting influencer tweets collection...")
+        test_collect_influencer_tweets(db)
 
-        print("\nTesting tweet collection task...")
-        test_collect_recent_tweets_task()
+        print("\nTesting influencer tweets collection task...")
+        test_collect_influencer_tweets_task()
 
     finally:
         db.close()
