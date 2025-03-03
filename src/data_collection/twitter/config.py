@@ -50,3 +50,18 @@ class TwitterConfig(BaseSettings):
 
 # Create a global configuration instance
 twitter_config = TwitterConfig()
+
+
+def validate_twitter_credentials() -> bool:
+    """
+    Validate that all required Twitter API credentials are set.
+
+    Returns:
+        bool: True if all credentials are set, False otherwise
+    """
+    try:
+        # This will raise an exception if any validation fails
+        TwitterConfig()
+        return True
+    except ValueError:
+        return False
