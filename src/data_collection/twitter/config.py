@@ -3,15 +3,26 @@ Configuration module for Twitter API integration.
 Loads Twitter API credentials and settings from environment variables.
 """
 from typing import List, Optional
-from pydantic import BaseSettings, Field, field_validator
+from pydantic import BaseSettings, Field, validator
 
 from config.settings import (
     TWITTER_API_KEY,
     TWITTER_API_SECRET,
     TWITTER_ACCESS_TOKEN,
-    TWITTER_ACCESS_TOKEN_SECRET,
-    SOLANA_HASHTAGS
+    TWITTER_ACCESS_TOKEN_SECRET
 )
+
+DEFAULT_CRYPTO_INFLUENCERS = [
+    "SBF_FTX",  # Sam Bankman-Fried
+    "cz_binance",  # Changpeng Zhao (Binance)
+    "VitalikButerin",  # Vitalik Buterin (Ethereum)
+    "elonmusk",  # Elon Musk
+    "CryptoWendyO",  # Crypto Wendy
+    "AltcoinSara",  # Altcoin Sara
+    "cryptoSqueeze",  # Crypto Squeeze
+    "AltcoinPsycho",  # Altcoin Psycho
+    "TheCryptoDog",  # Crypto Dog
+]
 
 
 class TwitterConfig(BaseSettings):
@@ -22,10 +33,12 @@ class TwitterConfig(BaseSettings):
     access_token: str = Field(default=TWITTER_ACCESS_TOKEN, env="TWITTER_ACCESS_TOKEN")
     access_token_secret: str = Field(default=TWITTER_ACCESS_TOKEN_SECRET, env="TWITTER_ACCESS_TOKEN_SECRET")
 
-    # Search settings
-    search_hashtags: List[str] = SOLANA_HASHTAGS
+    # Accounts to follow
+    influencer_accounts: List[str] = DEFAULT_CRYPTO_INFLUENCERS
+
+    # Tweet retrieval settings
     search_languages: List[str] = ["en"]  # Default to English tweets
-    max_tweets_per_query: int = 100
+    max_tweets_per_user: int = 10  # Maximum number of tweets from one user
 
     # Rate limiting settings
     rate_limit_window: int = 15  # minutes
@@ -35,7 +48,7 @@ class TwitterConfig(BaseSettings):
     max_retries: int = 3
     retry_delay: int = 5  # seconds between retries
 
-    @field_validator("api_key", "api_secret", "access_token", "access_token_secret")
+    @validator("api_key", "api_secret", "access_token", "access_token_secret")
     def check_credentials(cls, v, values, **kwargs):
         """Validate that Twitter API credentials are provided."""
         if not v:
