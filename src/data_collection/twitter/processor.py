@@ -32,52 +32,36 @@ class TwitterDataProcessor:
         self.client = client or TwitterAPIClient()
         self.token_cache = {}  # Cache of known tokens
 
-    def collect_solana_tweets(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def collect_influencer_tweets(self, limit_per_user: int = None) -> List[Dict[str, Any]]:
         """
-        Collect tweets related to Solana based on configured hashtags.
+        Collect tweets from configured influencer accounts.
 
         Args:
-            limit: Maximum number of tweets to collect
+            limit_per_user: Maximum number of tweets to collect per user
 
         Returns:
             List of processed tweet data
         """
+        limit_per_user = limit_per_user or twitter_config.max_tweets_per_user
         results = []
 
-        # Build query from configured hashtags
-        hashtags = self.build_search_query()
+        # Get tweets from each influencer
+        for username in twitter_config.influencer_accounts:
+            try:
+                logger.info(f"Collecting tweets from influencer: {username}")
+                user_tweets = self.client.get_user_tweets(username, max_results=limit_per_user)
 
-        # Collect tweets
-        tweets = self.client.search_tweets(hashtags, max_results=limit)
+                if user_tweets:
+                    logger.info(f"Collected {len(user_tweets)} tweets from {username}")
+                    results.extend(user_tweets)
+                else:
+                    logger.warning(f"No tweets found for influencer: {username}")
 
-        if tweets:
-            logger.info(f"Collected {len(tweets)} tweets related to Solana")
-            results.extend(tweets)
-        else:
-            logger.warning("No tweets found for the specified hashtags")
+            except Exception as e:
+                logger.error(f"Error collecting tweets from {username}: {e}")
 
+        logger.info(f"Total influencer tweets collected: {len(results)}")
         return results
-
-    def build_search_query(self) -> str:
-        """
-        Build a search query string from configured hashtags.
-
-        Returns:
-            Search query string
-        """
-        # Format each hashtag with # and join with OR
-        hashtag_terms = ' OR '.join([f'#{tag}' for tag in twitter_config.search_hashtags])
-
-        # Also include $SOL cashtag
-        query = f"({hashtag_terms}) OR $SOL"
-
-        # Add language filter if specified
-        if twitter_config.search_languages:
-            lang_filter = ' OR '.join([f'lang:{lang}' for lang in twitter_config.search_languages])
-            query = f"({query}) ({lang_filter})"
-
-        logger.info(f"Built search query: {query}")
-        return query
 
     def extract_solana_tokens(self, tweet_text: str, known_tokens: List[SolanaToken]) -> Set[str]:
         """
