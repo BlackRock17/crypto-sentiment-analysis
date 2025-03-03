@@ -14,12 +14,12 @@ from src.data_collection.twitter.config import validate_twitter_credentials
 logger = logging.getLogger(__name__)
 
 
-def collect_recent_tweets(limit: int = 100) -> bool:
+def collect_influencer_tweets(limit_per_user: int = 10) -> bool:
     """
-    Collect recent tweets related to Solana.
+    Collect tweets from configured crypto influencers.
 
     Args:
-        limit: Maximum number of tweets to collect
+        limit_per_user: Maximum number of tweets to collect per influencer
 
     Returns:
         True if collection was successful, False otherwise
@@ -42,16 +42,16 @@ def collect_recent_tweets(limit: int = 100) -> bool:
             return False
 
         # Collect and store tweets
-        tweets_stored, mentions_found = service.collect_and_store_tweets(limit=limit)
+        tweets_stored, mentions_found = service.collect_and_store_influencer_tweets(limit_per_user=limit_per_user)
 
         # Log results
         logger.info(
-            f"Twitter collection task completed: {tweets_stored} tweets stored, {mentions_found} token mentions found")
+            f"Influencer collection task completed: {tweets_stored} tweets stored, {mentions_found} token mentions found")
 
         return True
 
     except Exception as e:
-        logger.error(f"Error in Twitter collection task: {e}")
+        logger.error(f"Error in influencer collection task: {e}")
         return False
     finally:
         # Close database session
