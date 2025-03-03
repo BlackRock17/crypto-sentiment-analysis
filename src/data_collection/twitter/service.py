@@ -36,23 +36,23 @@ class TwitterCollectionService:
         self.processor = TwitterDataProcessor(self.client)
         self.repository = TwitterRepository(db)
 
-    def collect_and_store_tweets(self, limit: int = 100) -> Tuple[int, int]:
+    def collect_and_store_influencer_tweets(self, limit_per_user: int = None) -> Tuple[int, int]:
         """
-        Collect tweets related to Solana and store them in the database.
+        Collect tweets from crypto influencers and store them in the database.
 
         Args:
-            limit: Maximum number of tweets to collect
+            limit_per_user: Maximum number of tweets to collect per user
 
         Returns:
             Tuple of (tweets_collected, token_mentions_found)
         """
-        logger.info(f"Starting collection of up to {limit} tweets")
+        logger.info(f"Starting collection of tweets from influencers")
 
-        # Collect tweets
-        tweets_data = self.processor.collect_solana_tweets(limit=limit)
+        # Collect tweets from influencers
+        tweets_data = self.processor.collect_influencer_tweets(limit_per_user=limit_per_user)
 
         if not tweets_data:
-            logger.warning("No tweets collected")
+            logger.warning("No influencer tweets collected")
             return 0, 0
 
         # Get known tokens for mention detection
@@ -85,7 +85,8 @@ class TwitterCollectionService:
                 mentions = self.repository.store_token_mentions(stored_tweet, token_symbols)
                 mentions_found += len(mentions)
 
-        logger.info(f"Collection complete: stored {tweets_stored} tweets with {mentions_found} token mentions")
+        logger.info(
+            f"Collection complete: stored {tweets_stored} influencer tweets with {mentions_found} token mentions")
         return tweets_stored, mentions_found
 
     def test_twitter_connection(self) -> bool:
