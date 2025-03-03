@@ -67,48 +67,64 @@ class TwitterAPIClient:
             logger.error(f"Twitter API connection test failed: {e}")
             return False
 
-    def search_tweets(self, query: str, max_results: int = None) -> List[Dict[str, Any]]:
+    def get_user_tweets(self, username: str, max_results: int = None) -> List[Dict[str, Any]]:
         """
-        Search for tweets matching a query.
+        Get recent tweets from a specific user.
 
         Args:
-            query: Search query string
+            username: Twitter username (without '@')
             max_results: Maximum number of results to return
-                        (defaults to config.max_tweets_per_query)
+                        (defaults to config.max_tweets_per_user)
 
         Returns:
             List of tweet data dictionaries
         """
-        max_results = max_results or self.config.max_tweets_per_query
+        max_results = max_results or self.config.max_tweets_per_user
 
         try:
+            # Get user ID by username
+            user_response = self._execute_with_retry(
+                lambda: self.client.get_user(username=username)
+            )
+
+            if not user_response or not user_response.data:
+                logger.warning(f"User not found: {username}")
+                return []
+
+            user_id = user_response.data.id
+
             # Define tweet fields to retrieve
             tweet_fields = [
                 "created_at", "author_id", "public_metrics",
                 "entities", "context_annotations"
             ]
 
-            # Execute the search with retry logic
+            # Get user's tweets
             response = self._execute_with_retry(
-                lambda: self.client.search_recent_tweets(
-                    query=query,
+                lambda: self.client.get_users_tweets(
+                    id=user_id,
                     max_results=min(max_results, 100),  # API limitation: max 100 per request
                     tweet_fields=tweet_fields,
+                    exclude=["retweets", "replies"]  # Exclude retweets and replies
                 )
             )
 
             if not response or not response.data:
-                logger.info(f"No tweets found for query: {query}")
+                logger.info(f"No tweets found for user: {username}")
                 return []
 
             # Process tweets into a standardized format
             tweets = self._process_tweets(response.data)
-            logger.info(f"Retrieved {len(tweets)} tweets for query: {query}")
 
+            # Add username to each tweet
+            for tweet in tweets:
+                tweet["author_username"] = username
+
+            logger.info(f"Retrieved {len(tweets)} tweets from user: {username}")
             return tweets
 
         except Exception as e:
-            logger.error(f"Error searching tweets: {e}")
+            logger.error(f"Error getting tweets from user '{username}': {e}")
             return []
 
     def _process_tweets(self, tweets: List[Tweet]) -> List[Dict[str, Any]]:
