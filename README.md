@@ -39,7 +39,8 @@ An advanced system for analyzing social media sentiment around Solana blockchain
 solana_sentiment/
 ├── alembic/
 │   ├── versions/
-│   │   └── d2361f92dba1_initial_migration.py
+│   │   ├── d2361f92dba1_initial_migration.py
+│   │   └── a3b4c5d6e7f8_add_twitter_models.py
 │   ├── env.py
 │   └── alembic.ini
 ├── config/
@@ -49,7 +50,8 @@ solana_sentiment/
 │   ├── __init__.py
 │   ├── api/
 │   │   ├── __init__.py
-│   │   └── auth.py
+│   │   ├── auth.py
+│   │   └── twitter.py
 │   ├── data_collection/
 │   │   ├── __init__.py
 │   │   ├── tasks/
@@ -72,22 +74,28 @@ solana_sentiment/
 │   │   │   ├── update.py
 │   │   │   ├── delete.py
 │   │   │   ├── core_queries.py
-│   │   │   └── auth.py
+│   │   │   ├── auth.py
+│   │   │   └── twitter.py
 │   │   └── models/
 │   │       ├── __init__.py
 │   │       ├── database.py
-│   │       └── auth.py
+│   │       ├── auth.py
+│   │       └── twitter.py
 │   ├── exceptions.py
 │   ├── middleware/
 │   │   ├── __init__.py
 │   │   └── rate_limiter.py
 │   ├── schemas/
 │   │   ├── __init__.py
-│   │   └── auth.py
+│   │   ├── auth.py
+│   │   └── twitter.py
 │   ├── security/
 │   │   ├── __init__.py
 │   │   ├── auth.py
 │   │   └── utils.py
+│   ├── scheduler/
+│   │   ├── __init__.py
+│   │   └── scheduler.py
 │   ├── analysis/
 │   ├── ml_models/
 │   └── visualization/
@@ -118,8 +126,13 @@ solana_sentiment/
 │   │   ├── test_auth_tokens.py
 │   │   ├── test_password_reset.py
 │   │   └── test_account_management.py
+│   ├── test_twitter/
+│   │   ├── __init__.py
+│   │   ├── test_twitter_models.py
+│   │   ├── test_twitter_api.py
+│   │   └── test_twitter_collection.py
 │   ├── test_database.py
-│   └── test_twitter_collection.py
+│   └── test_scheduler.py
 ├── requirements.txt
 ├── setup.py
 ├── .env
@@ -170,18 +183,18 @@ solana_sentiment/
      * Consistent error responses ✓
      * Request validation ✓
      * Comprehensive testing ✓
-3. Twitter API Integration (In Progress) ✓
+3. Twitter API Integration (Completed) ✓
    - API client implementation ✓
    - Crypto influencer tracking implementation ✓
    - Token mention extraction ✓
    - Data storage in database ✓
    - Error handling & retry logic ✓
    - Testing framework for Twitter components ✓
-   - Still To Do:
-     * Scheduled collection implementation
-     * Admin interface for managing influencer accounts
-     * Enhanced error monitoring and reporting
-     * Token metadata enrichment
+   - Influencer management model and CRUD operations ✓
+   - API usage tracking and limitation ✓
+   - Manual tweet addition functionality ✓
+   - Configurable collection frequency ✓
+   - Admin API endpoints for Twitter operations ✓
 4. Kafka Integration (Next Step)
    - Kafka cluster setup
    - Producer/Consumer implementation
@@ -289,15 +302,33 @@ solana_sentiment/
   * Extraction of token mentions from tweets implemented ✓
   * Storage of tweets and token mentions in database ✓
   * Error handling with retry logic implemented ✓
-  * Basic testing framework for Twitter components created ✓
+  * API usage tracking and limitation implemented ✓
+  * Manual tweet addition functionality implemented ✓
+  * Influencer model and management implemented ✓
+  * Configurable collection frequency implemented ✓
+  * Admin API endpoints for Twitter operations implemented ✓
+  * Comprehensive unit tests for Twitter functionality ✓
 
 ## Next Steps
-1. Complete Twitter API Integration
-   - Implement scheduled collection of tweets using a cron job or scheduler
-   - Create initial admin interface for managing tracked influencer accounts
-   - Add monitoring for Twitter rate limits and API health
-   - Improve token extraction with fuzzy matching for similar symbols
-   - Add metrics collection for Twitter API performance
+1. Kafka Integration
+   - Set up Kafka cluster for streaming data
+   - Implement producers and consumers for tweet data
+   - Create stream processing pipeline for real-time analysis
+   - Add monitoring for Kafka components
+   - Implement fault tolerance and error handling
+
+2. Machine Learning Pipeline Setup
+   - Set up Apache Airflow for orchestrating ML tasks
+   - Develop custom sentiment analysis model for crypto tweets
+   - Implement data preprocessing pipeline for tweets
+   - Create training and evaluation workflow
+   - Deploy model for real-time inference
+
+3. Monitoring and Visualization
+   - Implement ELK stack for centralized logging
+   - Set up Prometheus for metrics collection
+   - Create Grafana dashboards for system monitoring
+   - Develop real-time analytics dashboard for sentiment trends
 
 ## Advanced Features Details
 
