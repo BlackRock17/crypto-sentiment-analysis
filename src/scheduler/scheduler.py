@@ -11,6 +11,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from pytz import utc
 
 from config.settings import DATABASE_URL
+from src.data_collection.twitter.config import twitter_config, CollectionFrequency, get_collection_frequency_hours
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -67,19 +68,24 @@ def _configure_scheduled_jobs(scheduler: AsyncIOScheduler) -> None:
         scheduler: The scheduler instance
     """
     # Import tasks locally to avoid circular imports
-    from src.data_collection.tasks.twitter_tasks import collect_influencer_tweets
+    from src.data_collection.tasks.twitter_tasks import collect_automated_tweets
+
+    # Get collection frequency from config
+    collection_frequency = twitter_config.collection_frequency
+    hours_interval = get_collection_frequency_hours(collection_frequency)
+
+    logger.info(f"Configuring Twitter collection with {collection_frequency.value} frequency ({hours_interval} hours)")
 
     # Schedule Twitter data collection tasks
     scheduler.add_job(
-        collect_influencer_tweets,
+        collect_automated_tweets,
         'interval',
-        minutes=30,  # Run every 30 minutes
-        id='collect_influencer_tweets',
-        replace_existing=True,
-        args=[10]  # Limit to 10 tweets per influencer
+        hours=hours_interval,  # Use configured interval
+        id='collect_automated_tweets',
+        replace_existing=True
     )
 
-    logger.info("Scheduled job: collect_influencer_tweets (every 30 minutes)")
+    logger.info(f"Scheduled job: collect_automated_tweets (every {hours_interval} hours)")
 
 
 def shutdown_scheduler() -> None:
