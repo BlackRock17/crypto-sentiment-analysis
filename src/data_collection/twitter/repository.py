@@ -9,7 +9,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from src.data_processing.models.database import Tweet, SolanaToken, TokenMention
+from src.data_processing.models.database import Tweet, SolanaToken, TokenMention, SentimentAnalysis, SentimentEnum
+from src.data_processing.models.twitter import TwitterInfluencer, TwitterInfluencerTweet
 from src.data_processing.crud.create import create_tweet, create_token_mention
 from src.data_processing.crud.read import (
     get_tweet_by_twitter_id,
@@ -118,6 +119,55 @@ class TwitterRepository:
                 self.db.rollback()
 
         return mentions
+
+    def get_tweet_with_mentions(self, tweet_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get a tweet with its token mentions and sentiment analysis.
+
+        Args:
+            tweet_id: Database ID of the tweet
+
+        Returns:
+            Dictionary with tweet data, token mentions and sentiment, or None if not found
+        """
+        try:
+            # Get the tweet
+            tweet = self.db.query(Tweet).filter(Tweet.id == tweet_id).first()
+            if not tweet:
+                return None
+
+            # Get token mentions
+            mentions = get_token_mentions_by_tweet_id(self.db, tweet_id)
+            token_symbols = []
+
+            if mentions:
+                # Get token symbols
+                token_ids = [mention.token_id for mention in mentions]
+                tokens = self.db.query(SolanaToken).filter(SolanaToken.id.in_(token_ids)).all()
+                token_symbols = [token.symbol for token in tokens]
+
+            # Get sentiment analysis
+            sentiment = self.db.query(SentimentAnalysis).filter(SentimentAnalysis.tweet_id == tweet_id).first()
+            sentiment_value = None
+            if sentiment:
+                sentiment_value = sentiment.sentiment.value
+
+            # Format response
+            return {
+                "id": tweet.id,
+                "tweet_id": tweet.tweet_id,
+                "text": tweet.text,
+                "created_at": tweet.created_at,
+                "author_username": tweet.author_username,
+                "retweet_count": tweet.retweet_count,
+                "like_count": tweet.like_count,
+                "token_mentions": token_symbols,
+                "sentiment": sentiment_value
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting tweet with mentions {tweet_id}: {e}")
+            return None
 
     def get_known_tokens(self) -> List[SolanaToken]:
         """
