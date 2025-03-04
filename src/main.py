@@ -4,6 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from src.api.auth import router as auth_router
+from src.api.twitter import router as twitter_router
 from src.middleware.rate_limiter import RateLimiter
 from src.scheduler import setup_scheduler, shutdown_scheduler
 
@@ -41,6 +42,7 @@ app.add_middleware(RateLimiter)
 
 # Include routers
 app.include_router(auth_router)
+app.include_router(twitter_router)
 
 @app.get("/")
 async def root():
