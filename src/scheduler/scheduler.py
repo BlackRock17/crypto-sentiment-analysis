@@ -57,3 +57,26 @@ def setup_scheduler() -> AsyncIOScheduler:
     logger.info("Scheduler started successfully")
 
     return scheduler
+
+
+def _configure_scheduled_jobs(scheduler: AsyncIOScheduler) -> None:
+    """
+    Configure all scheduled jobs.
+
+    Args:
+        scheduler: The scheduler instance
+    """
+    # Import tasks locally to avoid circular imports
+    from src.data_collection.tasks.twitter_tasks import collect_influencer_tweets
+
+    # Schedule Twitter data collection tasks
+    scheduler.add_job(
+        collect_influencer_tweets,
+        'interval',
+        minutes=30,  # Run every 30 minutes
+        id='collect_influencer_tweets',
+        replace_existing=True,
+        args=[10]  # Limit to 10 tweets per influencer
+    )
+
+    logger.info("Scheduled job: collect_influencer_tweets (every 30 minutes)")
