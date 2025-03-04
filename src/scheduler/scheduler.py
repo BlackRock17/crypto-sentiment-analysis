@@ -80,3 +80,15 @@ def _configure_scheduled_jobs(scheduler: AsyncIOScheduler) -> None:
     )
 
     logger.info("Scheduled job: collect_influencer_tweets (every 30 minutes)")
+
+
+def shutdown_scheduler() -> None:
+    """
+    Shut down the task scheduler gracefully.
+    """
+    global scheduler
+
+    if scheduler is not None:
+        scheduler.shutdown()
+        scheduler = None
+        logger.info("Scheduler shut down successfully")
