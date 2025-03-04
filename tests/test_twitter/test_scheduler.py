@@ -58,3 +58,14 @@ def test_shutdown_scheduler(mock_apscheduler):
 
     # Verify the scheduler was shut down
     mock_apscheduler['scheduler_instance'].shutdown.assert_called_once()
+
+
+def test_setup_scheduler_twice(mock_apscheduler):
+    """Test that setup_scheduler doesn't recreate the scheduler if called multiple times"""
+    # Call setup_scheduler twice
+    setup_scheduler()
+    setup_scheduler()
+
+    # Verify scheduler was created only once
+    assert mock_apscheduler['scheduler_class'].call_count == 1
+    assert mock_apscheduler['scheduler_instance'].start.call_count == 1
