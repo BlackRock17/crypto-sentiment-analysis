@@ -46,3 +46,15 @@ def test_setup_scheduler(mock_apscheduler):
 
     # Verify the function returns the scheduler instance
     assert result == mock_apscheduler['scheduler_instance']
+
+
+def test_shutdown_scheduler(mock_apscheduler):
+    """Test scheduler shutdown"""
+    # First set up the scheduler
+    setup_scheduler()
+
+    # Then shut it down
+    shutdown_scheduler()
+
+    # Verify the scheduler was shut down
+    mock_apscheduler['scheduler_instance'].shutdown.assert_called_once()
