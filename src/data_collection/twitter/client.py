@@ -5,10 +5,13 @@ Handles authentication, rate limiting, and error handling.
 import time
 import logging
 from typing import List, Dict, Any, Optional, Generator, Union
+from datetime import datetime
 import tweepy
 from tweepy import Client, Response, Tweet
+from sqlalchemy.orm import Session
 
 from src.data_collection.twitter.config import twitter_config
+from src.data_processing.models.twitter import TwitterApiUsage, TwitterInfluencer
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -20,15 +23,17 @@ class TwitterAPIClient:
     Handles authentication, rate limiting, and provides methods for data collection.
     """
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, db: Session = None):
         """
         Initialize the Twitter API client.
 
         Args:
             config: Twitter API configuration (optional, uses default if None)
+            db: Database session for tracking API usage
         """
         self.config = config or twitter_config
         self.client = self._create_client()
+        self.db = db
         logger.info("Twitter API client initialized")
 
     def _create_client(self) -> Client:
@@ -67,12 +72,80 @@ class TwitterAPIClient:
             logger.error(f"Twitter API connection test failed: {e}")
             return False
 
-    def get_user_tweets(self, username: str, max_results: int = None) -> List[Dict[str, Any]]:
+    def check_api_limits(self, influencer_id: int = None) -> bool:
+        """
+        Check if we've exceeded the API limits.
+
+        Args:
+            influencer_id: Optional ID of the influencer to track usage for
+
+        Returns:
+            bool: True if we're within limits, False if limits exceeded
+        """
+        if not self.db:
+            logger.warning("Database session not provided, can't check API limits")
+            return True
+
+        # Get today's usage
+        today = datetime.utcnow().date()
+        today_usage = TwitterApiUsage.get_daily_usage(self.db, today)
+
+        # Get current month's usage
+        now = datetime.utcnow()
+        monthly_usage = TwitterApiUsage.get_monthly_usage(self.db, now.year, now.month)
+
+        # Check against limits
+        if monthly_usage >= self.config.monthly_request_limit:
+            logger.warning(f"Monthly API limit reached: {monthly_usage}/{self.config.monthly_request_limit}")
+            return False
+
+        if today_usage >= self.config.daily_request_limit:
+            logger.warning(f"Daily API limit reached: {today_usage}/{self.config.daily_request_limit}")
+            return False
+
+        return True
+
+    def track_api_usage(self, influencer_id: int, endpoint: str = "user_tweets") -> bool:
+        """
+        Track usage of Twitter API in the database.
+
+        Args:
+            influencer_id: ID of the influencer the request was for
+            endpoint: Which API endpoint was used
+
+        Returns:
+            bool: True if tracking successful, False otherwise
+        """
+        if not self.db:
+            logger.warning("Database session not provided, can't track API usage")
+            return False
+
+        try:
+            # Create usage record
+            usage = TwitterApiUsage(
+                date=datetime.utcnow(),
+                influencer_id=influencer_id,
+                endpoint=endpoint,
+                requests_used=1,
+                reset_time=datetime.utcnow()  # We don't have exact reset time from API
+            )
+
+            self.db.add(usage)
+            self.db.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error tracking API usage: {e}")
+            self.db.rollback()
+            return False
+
+    def get_user_tweets(self, username: str, influencer_id: Optional[int] = None, max_results: int = None) -> List[
+        Dict[str, Any]]:
         """
         Get recent tweets from a specific user.
 
         Args:
             username: Twitter username (without '@')
+            influencer_id: Optional ID of the influencer in our database
             max_results: Maximum number of results to return
                         (defaults to config.max_tweets_per_user)
 
@@ -80,6 +153,11 @@ class TwitterAPIClient:
             List of tweet data dictionaries
         """
         max_results = max_results or self.config.max_tweets_per_user
+
+        # Check if we're within API limits
+        if self.db and not self.check_api_limits(influencer_id):
+            logger.warning(f"API limit reached, skipping retrieval for {username}")
+            return []
 
         try:
             # Get user ID by username
@@ -119,6 +197,10 @@ class TwitterAPIClient:
             # Add username to each tweet
             for tweet in tweets:
                 tweet["author_username"] = username
+
+            # Track API usage if we have a database session and influencer ID
+            if self.db and influencer_id:
+                self.track_api_usage(influencer_id, "user_tweets")
 
             logger.info(f"Retrieved {len(tweets)} tweets from user: {username}")
             return tweets
