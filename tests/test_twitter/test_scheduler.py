@@ -26,3 +26,23 @@ def mock_apscheduler():
             'executor': mock_executor,
             'configure_jobs': mock_configure
         }
+
+
+def test_setup_scheduler(mock_apscheduler):
+    """Test scheduler setup"""
+    # Run the function
+    result = setup_scheduler()
+
+    # Verify the scheduler was created with correct parameters
+    mock_apscheduler['scheduler_class'].assert_called_once()
+    mock_apscheduler['jobstore'].assert_called_once()
+    mock_apscheduler['executor'].assert_called_once()
+
+    # Verify jobs were configured
+    mock_apscheduler['configure_jobs'].assert_called_once()
+
+    # Verify scheduler was started
+    mock_apscheduler['scheduler_instance'].start.assert_called_once()
+
+    # Verify the function returns the scheduler instance
+    assert result == mock_apscheduler['scheduler_instance']
