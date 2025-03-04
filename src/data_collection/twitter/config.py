@@ -4,6 +4,7 @@ Loads Twitter API credentials and settings from environment variables.
 """
 from typing import List, Optional
 from pydantic import BaseSettings, Field, validator
+from enum import Enum
 
 from config.settings import (
     TWITTER_API_KEY,
@@ -16,13 +17,16 @@ DEFAULT_CRYPTO_INFLUENCERS = [
     "SBF_FTX",  # Sam Bankman-Fried
     "cz_binance",  # Changpeng Zhao (Binance)
     "VitalikButerin",  # Vitalik Buterin (Ethereum)
-    "elonmusk",  # Elon Musk
-    "CryptoWendyO",  # Crypto Wendy
-    "AltcoinSara",  # Altcoin Sara
-    "cryptoSqueeze",  # Crypto Squeeze
-    "AltcoinPsycho",  # Altcoin Psycho
-    "TheCryptoDog",  # Crypto Dog
 ]
+
+
+class CollectionFrequency(str, Enum):
+    """Collection frequency options"""
+    DAILY = "daily"
+    HOURLY_12 = "12_hours"
+    HOURLY_6 = "6_hours"
+    HOURLY_3 = "3_hours"
+    HOURLY_1 = "hourly"
 
 
 class TwitterConfig(BaseSettings):
@@ -33,8 +37,16 @@ class TwitterConfig(BaseSettings):
     access_token: str = Field(default=TWITTER_ACCESS_TOKEN, env="TWITTER_ACCESS_TOKEN")
     access_token_secret: str = Field(default=TWITTER_ACCESS_TOKEN_SECRET, env="TWITTER_ACCESS_TOKEN_SECRET")
 
+    # API Usage Limits
+    monthly_request_limit: int = 100  # Free tier limit
+    daily_request_limit: int = 10  # Self-imposed daily limit
+
     # Accounts to follow
+    max_automated_influencers: int = 3  # Maximum number of influencers to track automatically
     influencer_accounts: List[str] = DEFAULT_CRYPTO_INFLUENCERS
+
+    # Collection frequency
+    collection_frequency: CollectionFrequency = CollectionFrequency.DAILY
 
     # Tweet retrieval settings
     search_languages: List[str] = ["en"]  # Default to English tweets
@@ -54,6 +66,13 @@ class TwitterConfig(BaseSettings):
         if not v:
             field_name = kwargs.get("field").name
             raise ValueError(f"Twitter {field_name} is required")
+        return v
+
+    @validator("max_automated_influencers")
+    def check_max_influencers(cls, v):
+        """Validate maximum number of automated influencers"""
+        if v < 0:
+            raise ValueError("Maximum number of automated influencers cannot be negative")
         return v
 
     class Config:
@@ -78,3 +97,23 @@ def validate_twitter_credentials() -> bool:
         return True
     except ValueError:
         return False
+
+
+def get_collection_frequency_hours(frequency: CollectionFrequency) -> int:
+    """
+    Get collection interval in hours based on frequency setting.
+
+    Args:
+        frequency: Collection frequency enum value
+
+    Returns:
+        int: Hours between collections
+    """
+    frequencies = {
+        CollectionFrequency.DAILY: 24,
+        CollectionFrequency.HOURLY_12: 12,
+        CollectionFrequency.HOURLY_6: 6,
+        CollectionFrequency.HOURLY_3: 3,
+        CollectionFrequency.HOURLY_1: 1,
+    }
+    return frequencies.get(frequency, 24)
