@@ -11,12 +11,10 @@ from alembic import context
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Next, we import our models
-from src.data_processing.models import Base
+from src.data_processing.models.database import Base
+from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
+from src.data_processing.models.twitter import TwitterInfluencer, TwitterInfluencerTweet, TwitterApiUsage
 from config.settings import DATABASE_URL
-
-# Adding our auth models to import models
-from src.data_processing.models.auth import User, Token, ApiKey
-
 
 # this is the Alembic Config object
 config = context.config
@@ -50,7 +48,7 @@ def run_migrations_online():
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, 
+            connection=connection,
             target_metadata=target_metadata
         )
 
