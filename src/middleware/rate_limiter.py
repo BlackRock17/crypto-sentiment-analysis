@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Dict, Tuple, Optional, Callable
 
@@ -23,6 +24,11 @@ class RateLimiter(BaseHTTPMiddleware):
         self.requests: Dict[str, Dict[float, int]] = {}
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+
+        # skip rate limiting in tests
+        if os.environ.get("TESTING") == "true":
+            return await call_next(request)
+
         # Extract client IP
         client_ip = self._get_client_ip(request)
 

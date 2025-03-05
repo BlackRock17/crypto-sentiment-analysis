@@ -3,6 +3,7 @@ Tests for the scheduler functionality.
 """
 
 import pytest
+import src.scheduler.scheduler
 from unittest.mock import patch, MagicMock
 
 from src.scheduler.scheduler import setup_scheduler, shutdown_scheduler
@@ -50,22 +51,43 @@ def test_setup_scheduler(mock_apscheduler):
 
 def test_shutdown_scheduler(mock_apscheduler):
     """Test scheduler shutdown"""
-    # First set up the scheduler
-    setup_scheduler()
+    # Temporarily replace the real scheduler with a mock
+    original_scheduler = src.scheduler.scheduler.scheduler
+    src.scheduler.scheduler.scheduler = mock_apscheduler['scheduler_instance']
 
-    # Then shut it down
-    shutdown_scheduler()
+    try:
+        # First set up the scheduler
+        setup_scheduler()
 
-    # Verify the scheduler was shut down
-    mock_apscheduler['scheduler_instance'].shutdown.assert_called_once()
+        # Then shut it down
+        shutdown_scheduler()
+
+        # Verify the scheduler was shut down
+        mock_apscheduler['scheduler_instance'].shutdown.assert_called_once()
+    finally:
+        # Restore original
+        src.scheduler.scheduler.scheduler = original_scheduler
 
 
-def test_setup_scheduler_twice(mock_apscheduler):
+def test_setup_scheduler_twice():
     """Test that setup_scheduler doesn't recreate the scheduler if called multiple times"""
-    # Call setup_scheduler twice
-    setup_scheduler()
-    setup_scheduler()
+    # Using direct patching in the test instead of the fixture
+    with patch('src.scheduler.scheduler.AsyncIOScheduler') as mock_scheduler, \
+         patch('src.scheduler.scheduler.SQLAlchemyJobStore'), \
+         patch('src.scheduler.scheduler.ThreadPoolExecutor'), \
+         patch('src.scheduler.scheduler._configure_scheduled_jobs'):
+        # Mock instance
+        mock_instance = MagicMock()
+        mock_scheduler.return_value = mock_instance
 
-    # Verify scheduler was created only once
-    assert mock_apscheduler['scheduler_class'].call_count == 1
-    assert mock_apscheduler['scheduler_instance'].start.call_count == 1
+        # Set scheduler to None to ensure that a new one will be created.
+        import src.scheduler.scheduler
+        src.scheduler.scheduler.scheduler = None
+
+        # Calling setup_scheduler twice
+        setup_scheduler()
+        setup_scheduler()
+
+        # Checking that the class has been called only once
+        assert mock_scheduler.call_count == 1
+        assert mock_instance.start.call_count == 1

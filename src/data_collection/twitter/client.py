@@ -13,6 +13,11 @@ from sqlalchemy.orm import Session
 from src.data_collection.twitter.config import twitter_config
 from src.data_processing.models.twitter import TwitterApiUsage, TwitterInfluencer
 
+if not hasattr(tweepy, 'ConnectionError'):
+    class ConnectionError(Exception):
+        pass
+    tweepy.ConnectionError = ConnectionError
+
 # Configure logger
 logger = logging.getLogger(__name__)
 

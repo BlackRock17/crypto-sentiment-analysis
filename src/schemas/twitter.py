@@ -3,7 +3,7 @@ Pydantic models for Twitter-related API endpoints.
 """
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, constr, validator
+from pydantic import BaseModel, Field, constr, validator, field_validator
 
 from src.data_collection.twitter.config import CollectionFrequency
 
@@ -54,7 +54,7 @@ class ManualTweetCreate(BaseModel):
     retweet_count: int = 0
     like_count: int = 0
 
-    @validator('created_at')
+    @field_validator('created_at')
     def validate_created_at(cls, v):
         if v and v > datetime.utcnow():
             raise ValueError("Created at date cannot be in the future")
