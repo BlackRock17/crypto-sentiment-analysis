@@ -357,7 +357,7 @@ async def update_influencer_endpoint(
             raise BadRequestException(f"Influencer with username '{influencer_data.username}' already exists")
 
     # Update influencer
-    updated = update_influencer(db, influencer_id, **influencer_data.dict(exclude_unset=True))
+    updated = update_influencer(db, influencer_id, **influencer_data.model_dump(exclude_unset=True))
     if not updated:
         raise ServerErrorException("Failed to update influencer")
 
