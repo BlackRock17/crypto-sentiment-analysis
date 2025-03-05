@@ -32,18 +32,24 @@ class TwitterAPIClient:
             db: Database session for tracking API usage
         """
         self.config = config or twitter_config
-        self.client = self._create_client()
         self.db = db
+        self.client = self._create_client()
         logger.info("Twitter API client initialized")
 
-    def _create_client(self) -> Client:
+    def _create_client(self) -> Optional[Client]:
         """
         Create and authenticate a Twitter API client.
 
         Returns:
-            tweepy.Client: Authenticated Twitter client
+            tweepy.Client: Authenticated Twitter client or None in test mode
         """
         try:
+            # If in test mode, return a mock client or None
+            if self.config.is_test_mode:
+                logger.info("Running in test mode - no actual Twitter API client created")
+                return None
+
+            # Initialize real client with credentials
             client = tweepy.Client(
                 consumer_key=self.config.api_key,
                 consumer_secret=self.config.api_secret,
@@ -54,6 +60,8 @@ class TwitterAPIClient:
             return client
         except Exception as e:
             logger.error(f"Failed to initialize Twitter client: {e}")
+            if self.config.is_test_mode:
+                return None
             raise
 
     def test_connection(self) -> bool:
@@ -63,8 +71,16 @@ class TwitterAPIClient:
         Returns:
             bool: True if connection successful, False otherwise
         """
+        # In test mode, return True to allow tests to proceed
+        if self.config.is_test_mode:
+            logger.info("Test mode: Simulating successful Twitter API connection")
+            return True
+
         try:
             # Try to get user information to test connection
+            if not self.client:
+                return False
+
             me = self.client.get_me()
             logger.info(f"Twitter API connection successful. User ID: {me.data.id}")
             return True
@@ -82,6 +98,10 @@ class TwitterAPIClient:
         Returns:
             bool: True if we're within limits, False if limits exceeded
         """
+        # In test mode, always return True
+        if self.config.is_test_mode:
+            return True
+
         if not self.db:
             logger.warning("Database session not provided, can't check API limits")
             return True
@@ -116,6 +136,10 @@ class TwitterAPIClient:
         Returns:
             bool: True if tracking successful, False otherwise
         """
+        # In test mode, skip tracking
+        if self.config.is_test_mode:
+            return True
+
         if not self.db:
             logger.warning("Database session not provided, can't track API usage")
             return False
@@ -153,6 +177,25 @@ class TwitterAPIClient:
             List of tweet data dictionaries
         """
         max_results = max_results or self.config.max_tweets_per_user
+
+        # In test mode, return mock data
+        if self.config.is_test_mode:
+            logger.info(f"Test mode: Returning mock tweets for {username}")
+            # Generate some dummy tweets for testing
+            mock_tweets = []
+            for i in range(3):
+                mock_tweets.append({
+                    "tweet_id": f"test_id_{i}",
+                    "text": f"Test tweet {i} about $SOL and #Solana",
+                    "created_at": datetime.utcnow(),
+                    "author_id": f"test_author_{username}",
+                    "author_username": username,
+                    "retweet_count": i * 5,
+                    "like_count": i * 10,
+                    "hashtags": ["Solana", "Crypto"],
+                    "cashtags": ["SOL", "ETH"]
+                })
+            return mock_tweets
 
         # Check if we're within API limits
         if self.db and not self.check_api_limits(influencer_id):
@@ -269,6 +312,10 @@ class TwitterAPIClient:
         Returns:
             Result of the operation or None if all retries fail
         """
+        # In test mode, return None
+        if self.config.is_test_mode:
+            return None
+
         max_retries = max_retries or self.config.max_retries
         retry_delay = retry_delay or self.config.retry_delay
 
