@@ -77,7 +77,7 @@ class TokenMention(Base):
 
     id = Column(Integer, primary_key=True)
     tweet_id = Column(Integer, ForeignKey("tweets.id"), nullable=False)
-    token_id = Column(Integer, ForeignKey("solana_tokens.id"), nullable=False)
+    token_id = Column(Integer, ForeignKey("blockchain_tokens.id"), nullable=False)
     mentioned_at = Column(DateTime, default=datetime.utcnow)
 
     # Relation

@@ -11,7 +11,7 @@ from alembic import context
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Next, we import our models
-from src.data_processing.models.database import Base
+from src.data_processing.models.database import Base, BlockchainToken, BlockchainNetwork, SentimentEnum, Tweet, SentimentAnalysis, TokenMention
 from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
 from src.data_processing.models.twitter import TwitterInfluencer, TwitterInfluencerTweet, TwitterApiUsage
 from config.settings import DATABASE_URL

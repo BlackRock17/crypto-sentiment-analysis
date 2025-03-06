@@ -16,7 +16,7 @@ TWITTER_ACCESS_TOKEN = os.getenv('TWITTER_ACCESS_TOKEN')
 TWITTER_ACCESS_TOKEN_SECRET = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
 
 # Database Configuration
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://username:password@localhost:5432/solana_sentiment')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://username:password@localhost:5432/crypto_sentiment')
 
 # Solana-related hashtags to track
 SOLANA_HASHTAGS = [
