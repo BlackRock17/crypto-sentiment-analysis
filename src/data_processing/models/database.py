@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum, Boolean, Index
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum, Boolean, Index, ARRAY
 from sqlalchemy.orm import declarative_base, relationship
 import enum
 
@@ -48,23 +48,28 @@ class BlockchainToken(Base):
     token_address = Column(String(44), nullable=False)  # May vary in length for different blockchains
     symbol = Column(String(20), nullable=False)
     name = Column(String(100))
-    blockchain_network = Column(String(50), nullable=True)  # Network name or NULL if unknown
-    network_confidence = Column(Float, default=0.0)  # Confidence in network definition (0-1)
-    manually_verified = Column(Boolean, default=False)  # Flag whether it is manually verified
+    blockchain_network_id = Column(Integer, ForeignKey("blockchain_networks.id"),
+                                   nullable=True)  # Network ID or NULL if unknown
+    network_confidence = Column(Float, default=0.0)  # Confidence in network determination (0-1)
+    manually_verified = Column(Boolean, default=False)  # Whether manually verified
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    needs_review = Column(Boolean, default=False)  # Flag if it needs review
+    needs_review = Column(Boolean, default=False)  # Whether needs review
 
-    # Indices
+    # References the blockchain_network field for backward compatibility
+    blockchain_network = Column(String(50), nullable=True)
+
+    # Indexes
     __table_args__ = (
-        # Unique index by address and network, allowing NULL in blockchain_network
-        Index('ix_blockchain_tokens_address_network', 'token_address', 'blockchain_network', unique=True),
-        # Index for faster searching by symbol and network
-        Index('ix_blockchain_tokens_symbol_network', 'symbol', 'blockchain_network')
+        # Unique index by address and network, allowing NULL in blockchain_network_id
+        Index('ix_blockchain_tokens_address_network', 'token_address', 'blockchain_network_id', unique=True),
+        # Index for faster lookup by symbol and network
+        Index('ix_blockchain_tokens_symbol_network', 'symbol', 'blockchain_network_id')
     )
 
-    # Relations
+    # Relationships
     mentions = relationship("TokenMention", back_populates="token", cascade="all, delete-orphan")
+    network = relationship("BlockchainNetwork", back_populates="tokens")
 
 
 class TokenMention(Base):
@@ -77,3 +82,31 @@ class TokenMention(Base):
 
     # Relation
     token = relationship("BlockchainToken", back_populates="mentions")
+
+
+class BlockchainNetwork(Base):
+    __tablename__ = "blockchain_networks"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), unique=True, nullable=False)  # Internal identifier (lowercase)
+    display_name = Column(String(100))  # User-friendly name for display
+    description = Column(Text)
+    icon_url = Column(String(255))  # URL to network icon
+    is_active = Column(Boolean, default=True)  # Whether the network is active
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Lists of related terms for network identification
+    hashtags = Column(ARRAY(String))  # Associated hashtags
+    keywords = Column(ARRAY(String))  # Associated keywords
+
+    # Network metadata
+    launch_date = Column(DateTime, nullable=True)  # When the network was launched
+    website_url = Column(String(255), nullable=True)  # Official website
+    explorer_url = Column(String(255), nullable=True)  # Block explorer URL
+
+    # Relationships
+    tokens = relationship("BlockchainToken", back_populates="network")
+
+    def __repr__(self):
+        return f"<BlockchainNetwork(name='{self.name}', display_name='{self.display_name}')>"
