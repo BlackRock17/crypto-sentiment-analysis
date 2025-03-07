@@ -1,80 +1,135 @@
+from typing import Type, List
+
 from sqlalchemy.orm import Session
-from src.data_processing.models.database import SolanaToken, Tweet, SentimentEnum, SentimentAnalysis, TokenMention
+
+from src.data_processing.models import BlockchainToken
+from src.data_processing.models.database import BlockchainToken, BlockchainNetwork, Tweet, SentimentEnum, SentimentAnalysis, TokenMention
 from datetime import datetime
 
 
-def get_solana_token_by_id(db: Session, token_id: int) -> SolanaToken:
+def get_blockchain_token_by_id(db: Session, token_id: int) -> BlockchainToken:
     """
-    Get a Solana token by its database ID
+    Gets a blockchain token by its database ID
 
     Args:
         db: Database session
-        token_id: The internal database ID of the token
+        token_id: The internal ID of the token in the database
 
     Returns:
-        SolanaToken instance or None if not found
+        BlockchainToken instance or None if not found
     """
-    return db.query(SolanaToken).filter(SolanaToken.id == token_id).first()
+    return db.query(BlockchainToken).filter(BlockchainToken.id == token_id).first()
 
 
-def get_solana_token_by_address(db: Session, token_address: str) -> SolanaToken:
+def get_blockchain_token_by_address(db: Session, token_address: str, blockchain_network: str = None) -> BlockchainToken:
     """
-    Get a Solana token by its blockchain address
+    Gets a blockchain token by its address and optionally network
 
     Args:
         db: Database session
-        token_address: The token's address on Solana blockchain
+        token_address: The address of the token in the blockchain network
+        blockchain_network: Optional blockchain network name
 
     Returns:
-        SolanaToken instance or None if not found
+        BlockchainToken instance or None if not found
     """
-    return db.query(SolanaToken).filter(SolanaToken.token_address == token_address).first()
+    query = db.query(BlockchainToken).filter(BlockchainToken.token_address == token_address)
+
+    if blockchain_network:
+        query = query.filter(BlockchainToken.blockchain_network == blockchain_network)
+
+    return query.first()
 
 
-def get_solana_token_by_symbol(db: Session, symbol: str) -> SolanaToken:
+def get_blockchain_token_by_symbol(db: Session, symbol: str, blockchain_network: str = None) -> BlockchainToken:
     """
-    Get a Solana token by its symbol
+    Gets a blockchain token by its symbol and optionally network
 
     Args:
         db: Database session
         symbol: Token symbol (e.g. 'SOL')
+        blockchain_network: Optional blockchain network name
 
     Returns:
-        SolanaToken instance or None if not found
+        BlockchainToken instance or None if not found
     """
-    return db.query(SolanaToken).filter(SolanaToken.symbol == symbol).first()
+    query = db.query(BlockchainToken).filter(BlockchainToken.symbol == symbol)
+
+    if blockchain_network:
+        query = query.filter(BlockchainToken.blockchain_network == blockchain_network)
+
+    return query.first()
 
 
-def get_all_solana_tokens(
+def get_blockchain_token_by_symbol_and_network(db: Session, symbol: str, blockchain_network_id: int) \
+                                              -> (Type[BlockchainToken] | None):
+    """
+    Gets a blockchain token by its symbol and network ID
+
+    Args:
+        db: Database session
+        symbol: Token symbol (e.g. 'SOL')
+        blockchain_network_id: Blockchain network ID
+
+    Returns:
+        BlockchainToken instance or None if not found
+    """
+    return (db.query(BlockchainToken)
+            .filter(BlockchainToken.symbol == symbol)
+            .filter(BlockchainToken.blockchain_network_id == blockchain_network_id)
+            .first())
+
+
+def get_all_blockchain_tokens(
         db: Session,
         skip: int = 0,
         limit: int = 100,
         symbol_filter: str = None,
-        name_filter: str = None
-) -> list[SolanaToken]:
+        name_filter: str = None,
+        blockchain_network: str = None,
+        blockchain_network_id: int = None,
+        needs_review: bool = None,
+        manually_verified: bool = None
+) -> list[Type[BlockchainToken]]:
     """
-    Get all Solana tokens with optional filtering and pagination
+    Gets all blockchain tokens with optional filtering and pagination
 
     Args:
         db: Database session
         skip: Number of records to skip (for pagination)
         limit: Maximum number of records to return
-        symbol_filter: Filter tokens by symbol (case-insensitive partial match)
-        name_filter: Filter tokens by name (case-insensitive partial match)
+        symbol_filter: Filter by symbol (case insensitive)
+        name_filter: Filter by name (case insensitive)
+        blockchain_network: Filter by blockchain network name
+        blockchain_network_id: Filter by blockchain network ID
+        needs_review: Filter by needs-review flag
+        manually_verified: Filter by manual verification flag
 
     Returns:
-        List of SolanaToken instances
+        List of BlockchainToken instances
     """
-    query = db.query(SolanaToken)
+    query = db.query(BlockchainToken)
 
     # Apply filters if provided
     if symbol_filter:
-        query = query.filter(SolanaToken.symbol.ilike(f"%{symbol_filter}%"))
+        query = query.filter(BlockchainToken.symbol.ilike(f"%{symbol_filter}%"))
 
     if name_filter:
-        query = query.filter(SolanaToken.name.ilike(f"%{name_filter}%"))
+        query = query.filter(BlockchainToken.name.ilike(f"%{name_filter}%"))
 
-    # Apply pagination and return results
+    if blockchain_network:
+        query = query.filter(BlockchainToken.blockchain_network == blockchain_network)
+
+    if blockchain_network_id:
+        query = query.filter(BlockchainToken.blockchain_network_id == blockchain_network_id)
+
+    if needs_review is not None:
+        query = query.filter(BlockchainToken.needs_review == needs_review)
+
+    if manually_verified is not None:
+        query = query.filter(BlockchainToken.manually_verified == manually_verified)
+
+    # Implementing pagination and returning results
     return query.offset(skip).limit(limit).all()
 
 
@@ -144,7 +199,7 @@ def get_tweets(
 
     # Filter by token mention
     if token_symbol:
-        query = query.join(TokenMention).join(SolanaToken).filter(SolanaToken.symbol.ilike(f"%{token_symbol}%"))
+        query = query.join(TokenMention).join(BlockchainToken).filter(BlockchainToken.symbol.ilike(f"%{token_symbol}%"))
 
     # Filter by date range
     if date_from:
@@ -219,8 +274,8 @@ def get_sentiment_analyses(
 
     # Filter by token mentions
     if token_symbol:
-        query = query.join(Tweet).join(TokenMention).join(SolanaToken).filter(
-            SolanaToken.symbol.ilike(f"%{token_symbol}%"))
+        query = query.join(Tweet).join(TokenMention).join(BlockchainToken).filter(
+            BlockchainToken.symbol.ilike(f"%{token_symbol}%"))
 
     # Apply pagination and return results
     return query.offset(skip).limit(limit).all()
@@ -287,3 +342,90 @@ def get_token_mentions_by_tweet_id(db: Session, tweet_id: int) -> list[TokenMent
         List of TokenMention instances
     """
     return db.query(TokenMention).filter(TokenMention.tweet_id == tweet_id).all()
+
+
+def get_tokens_needing_review(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        min_confidence: float = None,
+        max_confidence: float = None
+) -> List[BlockchainToken]:
+    """
+    Retrieves tokens that need to be reviewed
+
+    Args:
+        db: Database session
+        skip: Number of records to skip (for pagination)
+        limit: Maximum number of records to return
+        min_confidence: Minimum confidence level
+        max_confidence: Maximum confidence level
+
+    Returns:
+        List of BlockchainToken instances
+    """
+    query = db.query(BlockchainToken).filter(BlockchainToken.needs_review == True)
+
+    if min_confidence is not None:
+        query = query.filter(BlockchainToken.network_confidence >= min_confidence)
+
+    if max_confidence is not None:
+        query = query.filter(BlockchainToken.network_confidence <= max_confidence)
+
+    return query.offset(skip).limit(limit).all()
+
+
+# Functions for working with BlockchainNetwork
+
+def get_blockchain_network_by_id(db: Session, network_id: int) -> BlockchainNetwork:
+    """
+    Gets a blockchain network by its ID
+
+    Args:
+        db: Database session
+        network_id: Network ID
+
+    Returns:
+        BlockchainNetwork instance or None if not found
+    """
+    return db.query(BlockchainNetwork).filter(BlockchainNetwork.id == network_id).first()
+
+
+def get_blockchain_network_by_name(db: Session, name: str) -> BlockchainNetwork:
+    """
+    Gets a blockchain network by its name
+
+    Args:
+        db: Database session
+        name: Network name (e.g., 'solana', 'ethereum')
+
+    Returns:
+        BlockchainNetwork instance or None if not found
+    """
+    return db.query(BlockchainNetwork).filter(BlockchainNetwork.name == name).first()
+
+
+def get_all_blockchain_networks(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        active_only: bool = False
+) -> List[BlockchainNetwork]:
+    """
+    Gets a list of blockchain networks
+
+    Args:
+        db: Database session
+        skip: Number of records to skip (for pagination)
+        limit: Maximum number of records to return
+        active_only: Only active networks if True
+
+    Returns:
+        List of BlockchainNetwork instances
+    """
+    query = db.query(BlockchainNetwork)
+
+    if active_only:
+        query = query.filter(BlockchainNetwork.is_active == True)
+
+    return query.offset(skip).limit(limit).all()
