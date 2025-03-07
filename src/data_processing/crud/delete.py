@@ -1,11 +1,12 @@
 from sqlalchemy.orm import Session
-from src.data_processing.models.database import SolanaToken, Tweet, SentimentAnalysis, TokenMention
+from src.data_processing.models.database import BlockchainToken, Tweet, SentimentAnalysis, TokenMention, \
+    BlockchainNetwork
 from datetime import datetime
 
 
-def delete_solana_token(db: Session, token_id: int, check_mentions: bool = True) -> bool:
+def delete_blockchain_token(db: Session, token_id: int, check_mentions: bool = True) -> bool:
     """
-    Delete a Solana token record
+    Delete a blockchain token record
 
     Args:
         db: Database session
@@ -16,7 +17,7 @@ def delete_solana_token(db: Session, token_id: int, check_mentions: bool = True)
         True if deletion was successful, False if token not found or has mentions
     """
     # Get the token by ID
-    db_token = db.query(SolanaToken).filter(SolanaToken.id == token_id).first()
+    db_token = db.query(BlockchainToken).filter(BlockchainToken.id == token_id).first()
 
     # Return False if token doesn't exist
     if db_token is None:
@@ -151,32 +152,39 @@ def delete_tweet_by_twitter_id(db: Session, twitter_id: str, cascade: bool = Tru
     return delete_tweet(db=db, tweet_id=db_tweet.id, cascade=cascade)
 
 
-def delete_solana_token_by_address(db: Session, token_address: str, check_mentions: bool = True) -> bool:
+def delete_blockchain_token_by_address(db: Session, token_address: str, blockchain_network: str = None,
+                                       check_mentions: bool = True) -> bool:
     """
-    Delete a Solana token record using its blockchain address
+    Delete a blockchain token record using its blockchain address
 
     Args:
         db: Database session
-        token_address: The token's address on Solana blockchain
+        token_address: The token's address on blockchain
+        blockchain_network: Optional blockchain network name to specify which token to delete
         check_mentions: If True, will check if token has mentions and prevent deletion
 
     Returns:
         True if deletion was successful, False if token not found or has mentions
     """
     # Get the token by address
-    db_token = db.query(SolanaToken).filter(SolanaToken.token_address == token_address).first()
+    query = db.query(BlockchainToken).filter(BlockchainToken.token_address == token_address)
+
+    if blockchain_network:
+        query = query.filter(BlockchainToken.blockchain_network == blockchain_network)
+
+    db_token = query.first()
 
     # Return False if token doesn't exist
     if db_token is None:
         return False
 
     # Call the existing delete function with the database ID
-    return delete_solana_token(db=db, token_id=db_token.id, check_mentions=check_mentions)
+    return delete_blockchain_token(db=db, token_id=db_token.id, check_mentions=check_mentions)
 
 
-def delete_solana_token_cascade(db: Session, token_id: int) -> bool:
+def delete_blockchain_token_cascade(db: Session, token_id: int) -> bool:
     """
-    Delete a Solana token record along with all its mentions
+    Delete a blockchain token record along with all its mentions
 
     Args:
         db: Database session
@@ -186,7 +194,7 @@ def delete_solana_token_cascade(db: Session, token_id: int) -> bool:
         True if deletion was successful, False if token not found
     """
     # Get the token by ID
-    db_token = db.query(SolanaToken).filter(SolanaToken.id == token_id).first()
+    db_token = db.query(BlockchainToken).filter(BlockchainToken.id == token_id).first()
 
     # Return False if token doesn't exist
     if db_token is None:
@@ -200,3 +208,59 @@ def delete_solana_token_cascade(db: Session, token_id: int) -> bool:
     db.commit()
 
     return True
+
+
+def delete_blockchain_network(db: Session, network_id: int, check_tokens: bool = True) -> bool:
+    """
+    Delete a blockchain network record
+
+    Args:
+        db: Database session
+        network_id: The ID of the network to delete
+        check_tokens: If True, will check if network has associated tokens and prevent deletion
+
+    Returns:
+        True if deletion was successful, False if network not found or has tokens
+    """
+    # Get the network by ID
+    db_network = db.query(BlockchainNetwork).filter(BlockchainNetwork.id == network_id).first()
+
+    # Return False if network doesn't exist
+    if db_network is None:
+        return False
+
+    # Check if the network has associated tokens
+    if check_tokens:
+        tokens_count = db.query(BlockchainToken).filter(BlockchainToken.blockchain_network_id == network_id).count()
+        if tokens_count > 0:
+            raise ValueError(
+                f"Cannot delete network with ID {network_id} as it has {tokens_count} associated tokens. Remove tokens first or set check_tokens=False.")
+
+    # Delete the network
+    db.delete(db_network)
+    db.commit()
+
+    return True
+
+
+def delete_blockchain_network_by_name(db: Session, network_name: str, check_tokens: bool = True) -> bool:
+    """
+    Delete a blockchain network record by its name
+
+    Args:
+        db: Database session
+        network_name: The name of the network to delete
+        check_tokens: If True, will check if network has associated tokens and prevent deletion
+
+    Returns:
+        True if deletion was successful, False if network not found or has tokens
+    """
+    # Get the network by name
+    db_network = db.query(BlockchainNetwork).filter(BlockchainNetwork.name == network_name).first()
+
+    # Return False if network doesn't exist
+    if db_network is None:
+        return False
+
+    # Call the existing delete function with the network ID
+    return delete_blockchain_network(db=db, network_id=db_network.id, check_tokens=check_tokens)
