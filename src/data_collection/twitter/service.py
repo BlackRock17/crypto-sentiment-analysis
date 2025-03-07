@@ -4,7 +4,7 @@ Coordinates data collection, processing, and storage.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Set
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -13,7 +13,7 @@ from src.data_collection.twitter.client import TwitterAPIClient
 from src.data_collection.twitter.processor import TwitterDataProcessor
 from src.data_collection.twitter.repository import TwitterRepository
 from src.data_collection.twitter.config import twitter_config
-from src.data_processing.models.database import Tweet, TokenMention
+from src.data_processing.models.database import Tweet, TokenMention, BlockchainNetwork, BlockchainToken
 from src.data_processing.models.twitter import TwitterInfluencer, TwitterInfluencerTweet
 from src.data_processing.crud.twitter import (
     get_automated_influencers, create_influencer_tweet, get_influencer_by_username
@@ -63,6 +63,10 @@ class TwitterCollectionService:
         tweets_stored = 0
         mentions_found = 0
 
+        # Get blockchain networks for better token identification
+        blockchain_networks = self.repository.get_blockchain_networks()
+        known_tokens = self.repository.get_known_tokens()
+
         # Process each influencer
         for influencer in influencers:
             # Check if we're within API limits
@@ -84,7 +88,13 @@ class TwitterCollectionService:
             # Process each tweet
             for tweet_data in tweets_data:
                 # Store the tweet and create links
-                result = self._process_and_store_tweet(tweet_data, influencer.id, is_manually_added=False)
+                result = self._process_and_store_tweet(
+                    tweet_data,
+                    influencer.id,
+                    is_manually_added=False,
+                    known_tokens=known_tokens,
+                    blockchain_networks=blockchain_networks
+                )
 
                 if result:
                     tweet_stored, mentions = result
@@ -145,8 +155,18 @@ class TwitterCollectionService:
             "like_count": like_count
         }
 
+        # Get blockchain networks and known tokens for better identification
+        blockchain_networks = self.repository.get_blockchain_networks()
+        known_tokens = self.repository.get_known_tokens()
+
         # Process and store tweet
-        result = self._process_and_store_tweet(tweet_data, influencer.id, is_manually_added=True)
+        result = self._process_and_store_tweet(
+            tweet_data,
+            influencer.id,
+            is_manually_added=True,
+            known_tokens=known_tokens,
+            blockchain_networks=blockchain_networks
+        )
 
         if not result:
             return None, 0
@@ -158,7 +178,9 @@ class TwitterCollectionService:
             self,
             tweet_data: Dict[str, Any],
             influencer_id: int,
-            is_manually_added: bool = False
+            is_manually_added: bool = False,
+            known_tokens: List[BlockchainToken] = None,
+            blockchain_networks: List[BlockchainNetwork] = None
     ) -> Optional[Tuple[Tweet, int]]:
         """
         Process and store a tweet with token mentions.
@@ -167,6 +189,8 @@ class TwitterCollectionService:
             tweet_data: Tweet data dictionary
             influencer_id: ID of the influencer
             is_manually_added: Whether the tweet was manually added
+            known_tokens: List of known tokens (for optimization)
+            blockchain_networks: List of known blockchain networks (for optimization)
 
         Returns:
             Tuple of (stored_tweet, mentions_count) or None if failed
@@ -188,20 +212,72 @@ class TwitterCollectionService:
                 is_manually_added=is_manually_added
             )
 
-            # Get known tokens for mention detection
-            known_tokens = self.repository.get_known_tokens()
+            # Get known tokens and networks if not provided
+            if known_tokens is None:
+                known_tokens = self.repository.get_known_tokens()
 
-            # Extract token mentions
-            token_symbols = self.processor.extract_solana_tokens(prepared_tweet['text'], known_tokens)
+            if blockchain_networks is None:
+                blockchain_networks = self.repository.get_blockchain_networks()
 
-            # Add symbols from cashtags if available
+            # Extract token mentions with blockchain network information
+            token_mentions = self.processor.extract_blockchain_tokens(
+                prepared_tweet['text'],
+                known_tokens,
+                blockchain_networks
+            )
+
+            # Convert set of tuples to list of dictionaries
+            token_data = []
+            if isinstance(token_mentions, dict):
+                # If processor returns a dict with token symbols as keys
+                for symbol, network_info in token_mentions.items():
+                    if isinstance(network_info, list):
+                        for network, confidence in network_info:
+                            token_data.append({
+                                "symbol": symbol,
+                                "blockchain_network": network,
+                                "network_confidence": confidence
+                            })
+                    else:
+                        # Handle case where network_info is a single value
+                        token_data.append({
+                            "symbol": symbol,
+                            "blockchain_network": network_info if not isinstance(network_info, tuple) else network_info[
+                                0],
+                            "network_confidence": 0.5 if not isinstance(network_info, tuple) else network_info[1]
+                        })
+            elif isinstance(token_mentions, set):
+                # Handle set of token dictionaries
+                token_data = [dict(t) for t in token_mentions]
+            else:
+                logger.warning(f"Unexpected format from token extraction: {type(token_mentions)}")
+                token_data = []
+
+            # Add cashtags if available in tweet_data
             if 'cashtags' in tweet_data:
-                token_symbols.update(set(tweet_data['cashtags']))
+                for cashtag in tweet_data['cashtags']:
+                    # Check if cashtag is already in token_data
+                    if not any(t.get('symbol') == cashtag.upper() for t in token_data):
+                        # Determine blockchain networks from detected_networks if available
+                        network = None
+                        confidence = 0.0
+
+                        if 'detected_networks' in prepared_tweet:
+                            networks = prepared_tweet['detected_networks']
+                            if networks:
+                                # Get the network with highest confidence
+                                network, confidence = max(networks.items(), key=lambda x: x[1])
+
+                        token_data.append({
+                            "symbol": cashtag.upper(),
+                            "blockchain_network": network,
+                            "network_confidence": confidence
+                        })
 
             # Store token mentions
             mentions_count = 0
-            if token_symbols:
-                mentions = self.repository.store_token_mentions(stored_tweet, token_symbols)
+            if token_data:
+                mentions = self.repository.store_token_mentions(stored_tweet, token_data)
                 mentions_count = len(mentions)
 
             return stored_tweet, mentions_count
