@@ -9,12 +9,14 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from src.data_processing.models.database import Tweet, SolanaToken, TokenMention, SentimentAnalysis, SentimentEnum
+from src.data_processing.models.database import Tweet, BlockchainToken, TokenMention, SentimentAnalysis, SentimentEnum, \
+    BlockchainNetwork
 from src.data_processing.models.twitter import TwitterInfluencer, TwitterInfluencerTweet
-from src.data_processing.crud.create import create_tweet, create_token_mention
+from src.data_processing.crud.create import create_tweet, create_token_mention, create_blockchain_token
 from src.data_processing.crud.read import (
     get_tweet_by_twitter_id,
-    get_solana_token_by_symbol,
+    get_blockchain_token_by_symbol,
+    get_blockchain_token_by_symbol_and_network,
     get_token_mentions_by_tweet_id
 )
 
@@ -79,25 +81,35 @@ class TwitterRepository:
             self.db.rollback()
             return None
 
-    def store_token_mentions(self, tweet: Tweet, token_symbols: Set[str]) -> List[TokenMention]:
+    def store_token_mentions(self, tweet: Tweet, token_data: List[Dict[str, Any]]) -> List[TokenMention]:
         """
         Store token mentions for a tweet.
 
         Args:
             tweet: Tweet instance
-            token_symbols: Set of token symbols mentioned in the tweet
+            token_data: List of token data dictionaries with format:
+                       {
+                           "symbol": str,                  # Token symbol (e.g., "SOL")
+                           "blockchain_network": str,      # Identified blockchain network or None
+                           "network_confidence": float,    # Confidence in network identification (0-1)
+                           "context": dict                 # Additional context information
+                       }
 
         Returns:
             List of created TokenMention instances
         """
         mentions = []
 
-        for symbol in token_symbols:
+        for token_info in token_data:
             try:
-                # Find token by symbol
-                token = get_solana_token_by_symbol(self.db, symbol)
+                symbol = token_info["symbol"]
+                blockchain_network = token_info.get("blockchain_network")
+                network_confidence = token_info.get("network_confidence", 0.0)
+
+                # Find or create token
+                token = self._find_or_create_token(symbol, blockchain_network, network_confidence)
                 if not token:
-                    logger.warning(f"Token with symbol {symbol} not found in database")
+                    logger.warning(f"Could not find or create token with symbol {symbol}")
                     continue
 
                 # Create token mention
@@ -120,6 +132,81 @@ class TwitterRepository:
 
         return mentions
 
+    def _find_or_create_token(
+            self,
+            symbol: str,
+            blockchain_network: Optional[str] = None,
+            network_confidence: float = 0.0
+    ) -> Optional[BlockchainToken]:
+        """
+        Find an existing token or create a new one if it doesn't exist.
+
+        Args:
+            symbol: Token symbol (e.g., "SOL")
+            blockchain_network: Blockchain network name or None if unknown
+            network_confidence: Confidence level in network identification (0-1)
+
+        Returns:
+            BlockchainToken instance or None if failed
+        """
+        try:
+            token = None
+            needs_review = False
+
+            # First try to find token by symbol and network
+            if blockchain_network:
+                # Check for manually verified tokens first (they take precedence)
+                tokens = self.db.query(BlockchainToken).filter(
+                    BlockchainToken.symbol == symbol,
+                    BlockchainToken.blockchain_network == blockchain_network,
+                    BlockchainToken.manually_verified == True
+                ).all()
+
+                if tokens:
+                    # If there's a manually verified token, use it
+                    return tokens[0]
+
+                # Then check for any token with this symbol and network
+                token = get_blockchain_token_by_symbol(self.db, symbol, blockchain_network)
+            else:
+                # If no network provided, just look for the symbol
+                # Note: This might return any network, so it's less reliable
+                token = get_blockchain_token_by_symbol(self.db, symbol)
+                needs_review = True  # Flag for review since network is uncertain
+
+            # If token exists, update confidence if higher
+            if token:
+                if blockchain_network and token.blockchain_network == blockchain_network:
+                    # Only update if the current confidence is higher
+                    if network_confidence > token.network_confidence:
+                        token.network_confidence = network_confidence
+                        self.db.commit()
+                return token
+
+            # Create new token if it doesn't exist
+            # For new tokens without a network or low confidence, mark them for review
+            if not blockchain_network or network_confidence < 0.5:
+                needs_review = True
+
+            # Placeholder address if we don't have the real one
+            token_address = f"unknown_address_{symbol.lower()}"
+
+            return create_blockchain_token(
+                db=self.db,
+                token_address=token_address,
+                symbol=symbol,
+                name=symbol,  # Use symbol as name until we have better data
+                blockchain_network=blockchain_network,
+                network_confidence=network_confidence,
+                manually_verified=False,
+                needs_review=needs_review
+            )
+
+        except Exception as e:
+            logger.error(f"Error finding or creating token {symbol}: {e}")
+            self.db.rollback()
+            return None
+
     def get_tweet_with_mentions(self, tweet_id: int) -> Optional[Dict[str, Any]]:
         """
         Get a tweet with its token mentions and sentiment analysis.
@@ -141,10 +228,12 @@ class TwitterRepository:
             token_symbols = []
 
             if mentions:
-                # Get token symbols
+                # Get token symbols and networks
                 token_ids = [mention.token_id for mention in mentions]
-                tokens = self.db.query(SolanaToken).filter(SolanaToken.id.in_(token_ids)).all()
-                token_symbols = [token.symbol for token in tokens]
+                tokens = self.db.query(BlockchainToken).filter(BlockchainToken.id.in_(token_ids)).all()
+                token_symbols = [
+                    f"{token.symbol}" + (f" ({token.blockchain_network})" if token.blockchain_network else "")
+                    for token in tokens]
 
             # Get sentiment analysis
             sentiment = self.db.query(SentimentAnalysis).filter(SentimentAnalysis.tweet_id == tweet_id).first()
@@ -169,15 +258,28 @@ class TwitterRepository:
             logger.error(f"Error getting tweet with mentions {tweet_id}: {e}")
             return None
 
-    def get_known_tokens(self) -> List[SolanaToken]:
+    def get_known_tokens(self) -> List[BlockchainToken]:
         """
-        Get all known Solana tokens from the database.
+        Get all known blockchain tokens from the database.
 
         Returns:
-            List of SolanaToken instances
+            List of BlockchainToken instances
         """
         try:
-            return self.db.query(SolanaToken).all()
+            return self.db.query(BlockchainToken).all()
         except Exception as e:
             logger.error(f"Error retrieving known tokens: {e}")
+            return []
+
+    def get_blockchain_networks(self) -> List[BlockchainNetwork]:
+        """
+        Get all blockchain networks from the database.
+
+        Returns:
+            List of BlockchainNetwork instances
+        """
+        try:
+            return self.db.query(BlockchainNetwork).filter(BlockchainNetwork.is_active == True).all()
+        except Exception as e:
+            logger.error(f"Error retrieving blockchain networks: {e}")
             return []
