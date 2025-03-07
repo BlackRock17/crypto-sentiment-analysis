@@ -126,8 +126,33 @@ class TwitterDataProcessor:
             if token_info:
                 mentioned_tokens.add(tuple(sorted(token_info.items())))
 
-        # Convert back to dictionaries
-        return {dict(token_tuple) for token_tuple in mentioned_tokens}
+        # Ensure we return a set of dictionaries with a consistent format
+        result_set = set()
+        for token_info in mentioned_tokens:
+            # Convert to a dictionary if it's a tuple of items
+            if isinstance(token_info, tuple):
+                token_dict = dict(token_info)
+            else:
+                token_dict = token_info
+
+            # Ensure all required fields are present
+            if "symbol" not in token_dict:
+                continue
+
+            if "blockchain_network" not in token_dict:
+                token_dict["blockchain_network"] = None
+
+            if "network_confidence" not in token_dict:
+                token_dict["network_confidence"] = 0.0
+
+            if "context" not in token_dict:
+                token_dict["context"] = {}
+
+            # Convert dictionary to a frozenset of items to make it hashable for a set
+            result_set.add(frozenset(token_dict.items()))
+
+        # Convert back to a set of dictionaries when returning
+        return {dict(token_tuple) for token_tuple in result_set}
 
     def _process_token_symbol(self, symbol: str, detected_networks: Dict[str, float], text_context: str) -> Dict[
         str, Any]:
