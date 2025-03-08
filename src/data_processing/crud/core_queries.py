@@ -2191,3 +2191,636 @@ def get_global_sentiment_trends(
         "network_sentiment": sorted_network_sentiment,
         "networks_included": network_filter
     }
+
+
+def get_token_categorization_stats(
+        db: Session,
+        days_back: int = 30
+) -> Dict:
+    """
+    Get statistics about token categorization quality and coverage
+
+    Args:
+        db: Database session
+        days_back: Number of days to analyze
+
+    Returns:
+        Dictionary with token categorization statistics
+    """
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days_back)
+
+    # Count tokens by categorization status
+    categorization_query = (
+        db.query(
+            BlockchainToken.blockchain_network != None,
+            BlockchainToken.manually_verified,
+            BlockchainToken.needs_review,
+            func.count(BlockchainToken.id).label("token_count")
+        )
+        .group_by(
+            BlockchainToken.blockchain_network != None,
+            BlockchainToken.manually_verified,
+            BlockchainToken.needs_review
+        )
+    )
+
+    # Process results
+    categorization_stats = {
+        "categorized": 0,
+        "uncategorized": 0,
+        "manually_verified": 0,
+        "auto_categorized": 0,
+        "needs_review": 0,
+        "confidence_levels": {
+            "high": 0,
+            "medium": 0,
+            "low": 0
+        }
+    }
+
+    for has_network, is_verified, needs_review, count in categorization_query:
+        if has_network:
+            categorization_stats["categorized"] += count
+            if is_verified:
+                categorization_stats["manually_verified"] += count
+            else:
+                categorization_stats["auto_categorized"] += count
+        else:
+            categorization_stats["uncategorized"] += count
+
+        if needs_review:
+            categorization_stats["needs_review"] += count
+
+    # Count tokens by confidence level
+    confidence_query = (
+        db.query(
+            func.case(
+                (BlockchainToken.network_confidence >= 0.8, "high"),
+                (BlockchainToken.network_confidence >= 0.5, "medium"),
+                else_="low"
+            ).label("confidence_level"),
+            func.count(BlockchainToken.id).label("token_count")
+        )
+        .filter(BlockchainToken.blockchain_network != None)
+        .group_by("confidence_level")
+    )
+
+    for level, count in confidence_query:
+        categorization_stats["confidence_levels"][level] = count
+
+    # Calculate coverage stats
+    total_tokens = categorization_stats["categorized"] + categorization_stats["uncategorized"]
+
+    coverage_stats = {
+        "total_tokens": total_tokens,
+        "categorized_percentage": round((categorization_stats["categorized"] / total_tokens) * 100,
+                                        2) if total_tokens > 0 else 0,
+        "manually_verified_percentage": round((categorization_stats["manually_verified"] / total_tokens) * 100,
+                                              2) if total_tokens > 0 else 0,
+        "needs_review_percentage": round((categorization_stats["needs_review"] / total_tokens) * 100,
+                                         2) if total_tokens > 0 else 0
+    }
+
+    # Get token mention stats by categorization status
+    mention_query = (
+        db.query(
+            BlockchainToken.blockchain_network != None,
+            func.count(TokenMention.id).label("mention_count")
+        )
+        .join(TokenMention, TokenMention.token_id == BlockchainToken.id)
+        .join(Tweet, Tweet.id == TokenMention.tweet_id)
+        .filter(Tweet.created_at.between(start_date, end_date))
+        .group_by(BlockchainToken.blockchain_network != None)
+    )
+
+    mention_stats = {
+        "categorized_mentions": 0,
+        "uncategorized_mentions": 0
+    }
+
+    for has_network, count in mention_query:
+        if has_network:
+            mention_stats["categorized_mentions"] = count
+        else:
+            mention_stats["uncategorized_mentions"] = count
+
+    total_mentions = mention_stats["categorized_mentions"] + mention_stats["uncategorized_mentions"]
+    mention_stats["total_mentions"] = total_mentions
+    mention_stats["categorized_percentage"] = round((mention_stats["categorized_mentions"] / total_mentions) * 100,
+                                                    2) if total_mentions > 0 else 0
+
+    # Return combined results
+    return {
+        "token_stats": categorization_stats,
+        "coverage_stats": coverage_stats,
+        "mention_stats": mention_stats,
+        "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+    }
+
+
+def detect_trending_tokens(
+        db: Session,
+        lookback_window: int = 7,
+        comparison_window: int = 7,
+        min_mentions: int = 10,
+        limit: int = 20,
+        blockchain_network: str = None
+) -> Dict:
+    """
+    Detect trending tokens based on mention growth
+
+    Args:
+        db: Database session
+        lookback_window: Number of days to look back for current period
+        comparison_window: Number of days to look back for comparison period
+        min_mentions: Minimum mentions in current period to be considered
+        limit: Maximum number of tokens to return
+        blockchain_network: Optional blockchain network to filter by
+
+    Returns:
+        Dictionary with trending token data
+    """
+    # Calculate date ranges
+    end_date = datetime.utcnow()
+    mid_date = end_date - timedelta(days=lookback_window)
+    start_date = mid_date - timedelta(days=comparison_window)
+
+    # Current period: mid_date to end_date
+    # Comparison period: start_date to mid_date
+
+    # Get token mentions for current period
+    current_query = (
+        db.query(
+            BlockchainToken.id,
+            BlockchainToken.symbol,
+            BlockchainToken.blockchain_network,
+            func.count(TokenMention.id).label("mention_count")
+        )
+        .join(TokenMention, TokenMention.token_id == BlockchainToken.id)
+        .join(Tweet, Tweet.id == TokenMention.tweet_id)
+        .filter(Tweet.created_at.between(mid_date, end_date))
+    )
+
+    # Apply network filter if provided
+    if blockchain_network:
+        current_query = current_query.filter(BlockchainToken.blockchain_network == blockchain_network)
+
+    # Group by and set minimum threshold
+    current_query = (
+        current_query.group_by(
+            BlockchainToken.id,
+            BlockchainToken.symbol,
+            BlockchainToken.blockchain_network
+        )
+        .having(func.count(TokenMention.id) >= min_mentions)
+    )
+
+    # Get current period data
+    current_data = {
+        (token_id, symbol, network): count
+        for token_id, symbol, network, count in current_query
+    }
+
+    # If no tokens in current period, return empty result
+    if not current_data:
+        return {
+            "current_period": f"{mid_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+            "comparison_period": f"{start_date.strftime('%Y-%m-%d')} to {mid_date.strftime('%Y-%m-%d')}",
+            "network_filter": blockchain_network,
+            "trending_tokens": []
+        }
+
+    # Get token IDs from current period
+    token_ids = [token_id for (token_id, _, _) in current_data.keys()]
+
+    # Get token mentions for comparison period (only for tokens in current period)
+    previous_query = (
+        db.query(
+            BlockchainToken.id,
+            func.count(TokenMention.id).label("mention_count")
+        )
+        .join(TokenMention, TokenMention.token_id == BlockchainToken.id)
+        .join(Tweet, Tweet.id == TokenMention.tweet_id)
+        .filter(BlockchainToken.id.in_(token_ids))
+        .filter(Tweet.created_at.between(start_date, mid_date))
+        .group_by(BlockchainToken.id)
+    )
+
+    # Get previous period data
+    previous_data = {
+        token_id: count for token_id, count in previous_query
+    }
+
+    # Calculate growth for each token
+    trending_tokens = []
+
+    for (token_id, symbol, network), current_count in current_data.items():
+        previous_count = previous_data.get(token_id, 0)
+
+        # Calculate growth metrics
+        if previous_count > 0:
+            percentage_growth = ((current_count - previous_count) / previous_count) * 100
+        else:
+            # If no previous mentions, use a high value to indicate new tokens
+            percentage_growth = 1000  # 1000% growth for new tokens
+
+        absolute_growth = current_count - previous_count
+
+        # Get sentiment data for current period
+        sentiment_query = (
+            db.query(
+                SentimentAnalysis.sentiment,
+                func.count(SentimentAnalysis.id).label("count")
+            )
+            .join(Tweet, Tweet.id == SentimentAnalysis.tweet_id)
+            .join(TokenMention, TokenMention.tweet_id == Tweet.id)
+            .filter(TokenMention.token_id == token_id)
+            .filter(Tweet.created_at.between(mid_date, end_date))
+            .group_by(SentimentAnalysis.sentiment)
+        )
+
+        sentiment_counts = {sentiment.value: 0 for sentiment in SentimentEnum}
+        for sentiment, count in sentiment_query:
+            sentiment_counts[sentiment.value] = count
+
+        total_sentiment = sum(sentiment_counts.values())
+
+        # Calculate sentiment score
+        if total_sentiment > 0:
+            positive = sentiment_counts["positive"]
+            negative = sentiment_counts["negative"]
+            sentiment_score = round((positive - negative) / total_sentiment, 2)
+        else:
+            sentiment_score = 0
+
+        # Add to trending tokens list
+        trending_tokens.append({
+            "token_id": token_id,
+            "symbol": symbol,
+            "blockchain_network": network,
+            "display_name": f"{symbol} ({network})" if network else symbol,
+            "current_mentions": current_count,
+            "previous_mentions": previous_count,
+            "absolute_growth": absolute_growth,
+            "percentage_growth": round(percentage_growth, 2),
+            "sentiment_score": sentiment_score,
+            "sentiment_breakdown": {
+                sentiment: {
+                    "count": count,
+                    "percentage": round((count / total_sentiment) * 100, 2) if total_sentiment > 0 else 0
+                }
+                for sentiment, count in sentiment_counts.items()
+            }
+        })
+
+    # Sort tokens by growth percentage
+    sorted_tokens = sorted(
+        trending_tokens,
+        key=lambda token: token["percentage_growth"],
+        reverse=True
+    )
+
+    # Apply limit
+    trending_tokens = sorted_tokens[:limit]
+
+    # Return result
+    return {
+        "current_period": f"{mid_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+        "comparison_period": f"{start_date.strftime('%Y-%m-%d')} to {mid_date.strftime('%Y-%m-%d')}",
+        "network_filter": blockchain_network,
+        "trending_tokens": trending_tokens
+    }
+
+
+def find_correlated_network_sentiments(
+        db: Session,
+        days_back: int = 30,
+        interval: str = "day",
+        correlation_threshold: float = 0.5
+) -> Dict:
+    """
+    Find correlations between sentiment trends of different blockchain networks
+
+    Args:
+        db: Database session
+        days_back: Number of days to look back
+        interval: Time interval for correlation calculation ('day', 'week')
+        correlation_threshold: Minimum correlation coefficient to include in results
+
+    Returns:
+        Dictionary with network correlation data
+    """
+    # Validate inputs
+    valid_intervals = ["day", "week"]
+    if interval not in valid_intervals:
+        raise ValueError(f"Invalid interval '{interval}'. Must be one of: {valid_intervals}")
+
+    if days_back <= 0:
+        raise ValueError("days_back must be a positive integer")
+
+    if correlation_threshold < 0 or correlation_threshold > 1:
+        raise ValueError("correlation_threshold must be between 0 and 1")
+
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days_back)
+
+    # Get sentiment timeline for each network
+    network_query = (
+        db.query(
+            BlockchainToken.blockchain_network,
+            func.date_trunc(interval, Tweet.created_at).label('time_bucket'),
+            SentimentAnalysis.sentiment,
+            func.count(SentimentAnalysis.id).label("count")
+        )
+        .join(TokenMention, TokenMention.token_id == BlockchainToken.id)
+        .join(Tweet, Tweet.id == TokenMention.tweet_id)
+        .join(SentimentAnalysis, SentimentAnalysis.tweet_id == Tweet.id)
+        .filter(BlockchainToken.blockchain_network != None)
+        .filter(Tweet.created_at.between(start_date, end_date))
+        .group_by(
+            BlockchainToken.blockchain_network,
+            'time_bucket',
+            SentimentAnalysis.sentiment
+        )
+        .order_by(
+            BlockchainToken.blockchain_network,
+            'time_bucket'
+        )
+    )
+
+    # Calculate sentiment scores for each network and time bucket
+    network_sentiment_scores = {}
+
+    for network, time_bucket, sentiment, count in network_query:
+        # Initialize network if not exists
+        if network not in network_sentiment_scores:
+            network_sentiment_scores[network] = {}
+
+        # Initialize time bucket if not exists
+        time_key = time_bucket.strftime('%Y-%m-%d')
+        if time_key not in network_sentiment_scores[network]:
+            network_sentiment_scores[network][time_key] = {
+                "positive": 0,
+                "negative": 0,
+                "neutral": 0,
+                "total": 0,
+                "score": 0
+            }
+
+        # Add counts
+        sentiment_key = sentiment.value.lower()
+        network_sentiment_scores[network][time_key][sentiment_key] = count
+        network_sentiment_scores[network][time_key]["total"] += count
+
+    # Calculate sentiment score for each time bucket
+    for network, timeline in network_sentiment_scores.items():
+        for time_key, data in timeline.items():
+            if data["total"] > 0:
+                # Calculate sentiment score: (positive - negative) / total
+                data["score"] = (data["positive"] - data["negative"]) / data["total"]
+
+    # Filter networks with enough data points
+    min_data_points = 5
+    valid_networks = [
+        network for network, timeline in network_sentiment_scores.items()
+        if len(timeline) >= min_data_points
+    ]
+
+    # Calculate correlations between networks
+    network_correlations = []
+
+    if len(valid_networks) >= 2:
+        from scipy.stats import pearsonr
+
+        for i in range(len(valid_networks)):
+            for j in range(i + 1, len(valid_networks)):
+                network1 = valid_networks[i]
+                network2 = valid_networks[j]
+
+                # Get common time points
+                common_times = set(network_sentiment_scores[network1].keys()) & set(
+                    network_sentiment_scores[network2].keys())
+
+                if len(common_times) >= min_data_points:
+                    # Create arrays of sentiment scores for common time points
+                    scores1 = [network_sentiment_scores[network1][t]["score"] for t in common_times]
+                    scores2 = [network_sentiment_scores[network2][t]["score"] for t in common_times]
+
+                    try:
+                        # Calculate Pearson correlation
+                        correlation, p_value = pearsonr(scores1, scores2)
+
+                        # Only include significant correlations above threshold
+                        if abs(correlation) >= correlation_threshold and p_value < 0.05:
+                            network_correlations.append({
+                                "network1": network1,
+                                "network2": network2,
+                                "correlation": round(correlation, 3),
+                                "p_value": round(p_value, 3),
+                                "common_data_points": len(common_times),
+                                "direction": "positive" if correlation > 0 else "negative"
+                            })
+                    except:
+                        # Skip if correlation calculation fails
+                        pass
+
+    # Sort correlations by strength
+    network_correlations = sorted(
+        network_correlations,
+        key=lambda x: abs(x["correlation"]),
+        reverse=True
+    )
+
+    # Return result
+    return {
+        "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+        "interval": interval,
+        "threshold": correlation_threshold,
+        "networks_analyzed": valid_networks,
+        "correlations": network_correlations
+    }
+
+
+def analyze_sentiment_seasonality(
+        db: Session,
+        token_symbol: str = None,
+        blockchain_network: str = None,
+        weeks_back: int = 12
+) -> Dict:
+    """
+    Analyze sentiment seasonality patterns for a token or network
+
+    Args:
+        db: Database session
+        token_symbol: Optional token symbol to analyze
+        blockchain_network: Optional blockchain network to analyze
+        weeks_back: Number of weeks to look back
+
+    Returns:
+        Dictionary with seasonality data
+    """
+    # Validate inputs
+    if not token_symbol and not blockchain_network:
+        raise ValueError("Must provide either token_symbol or blockchain_network")
+
+    if weeks_back <= 0:
+        raise ValueError("weeks_back must be a positive integer")
+
+    # Check token exists if provided
+    if token_symbol:
+        token_query = db.query(BlockchainToken).filter(BlockchainToken.symbol == token_symbol)
+        if blockchain_network:
+            token_query = token_query.filter(BlockchainToken.blockchain_network == blockchain_network)
+
+        if not token_query.first():
+            error_msg = f"Token with symbol '{token_symbol}'"
+            if blockchain_network:
+                error_msg += f" on network '{blockchain_network}'"
+            error_msg += " not found"
+            raise ValueError(error_msg)
+
+    # Check network exists if provided
+    if blockchain_network and not token_symbol:
+        network = db.query(BlockchainNetwork).filter(BlockchainNetwork.name == blockchain_network).first()
+        if not network:
+            raise ValueError(f"Blockchain network '{blockchain_network}' not found")
+
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(weeks=weeks_back)
+
+    # Create base query
+    query = (
+        db.query(
+            func.extract('dow', Tweet.created_at).label('day_of_week'),
+            func.extract('hour', Tweet.created_at).label('hour_of_day'),
+            SentimentAnalysis.sentiment,
+            func.count(SentimentAnalysis.id).label("count")
+        )
+        .join(Tweet, Tweet.id == SentimentAnalysis.tweet_id)
+        .join(TokenMention, TokenMention.tweet_id == Tweet.id)
+        .join(BlockchainToken, BlockchainToken.id == TokenMention.token_id)
+        .filter(Tweet.created_at.between(start_date, end_date))
+    )
+
+    # Apply filters
+    if token_symbol:
+        query = query.filter(BlockchainToken.symbol == token_symbol)
+
+    if blockchain_network:
+        query = query.filter(BlockchainToken.blockchain_network == blockchain_network)
+
+    # Group by dimensions
+    query = query.group_by(
+        'day_of_week',
+        'hour_of_day',
+        SentimentAnalysis.sentiment
+    )
+
+    # Execute query
+    results = query.all()
+
+    # Process results
+    hourly_patterns = {}
+    daily_patterns = {}
+
+    for day, hour, sentiment, count in results:
+        day = int(day)
+        hour = int(hour)
+        sentiment_key = sentiment.value.lower()
+
+        # Initialize day record if not exists
+        if day not in daily_patterns:
+            daily_patterns[day] = {
+                "positive": 0,
+                "negative": 0,
+                "neutral": 0,
+                "total": 0
+            }
+
+        # Initialize hour record if not exists
+        hour_key = f"{day}_{hour}"
+        if hour_key not in hourly_patterns:
+            hourly_patterns[hour_key] = {
+                "day": day,
+                "hour": hour,
+                "positive": 0,
+                "negative": 0,
+                "neutral": 0,
+                "total": 0
+            }
+
+        # Add counts
+        daily_patterns[day][sentiment_key] += count
+        daily_patterns[day]["total"] += count
+
+        hourly_patterns[hour_key][sentiment_key] += count
+        hourly_patterns[hour_key]["total"] += count
+
+    # Calculate sentiment scores
+    for day, data in daily_patterns.items():
+        if data["total"] > 0:
+            data["positive_pct"] = round((data["positive"] / data["total"]) * 100, 2)
+            data["negative_pct"] = round((data["negative"] / data["total"]) * 100, 2)
+            data["neutral_pct"] = round((data["neutral"] / data["total"]) * 100, 2)
+            data["sentiment_score"] = round((data["positive"] - data["negative"]) / data["total"], 2)
+
+    for hour_key, data in hourly_patterns.items():
+        if data["total"] > 0:
+            data["positive_pct"] = round((data["positive"] / data["total"]) * 100, 2)
+            data["negative_pct"] = round((data["negative"] / data["total"]) * 100, 2)
+            data["neutral_pct"] = round((data["neutral"] / data["total"]) * 100, 2)
+            data["sentiment_score"] = round((data["positive"] - data["negative"]) / data["total"], 2)
+
+    # Convert to lists and sort
+    daily_data = [
+        {
+            "day": day,
+            "day_name": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][day % 7],
+            **data
+        }
+        for day, data in daily_patterns.items()
+    ]
+    daily_data.sort(key=lambda x: x["day"])
+
+    hourly_data = list(hourly_patterns.values())
+    hourly_data.sort(key=lambda x: (x["day"], x["hour"]))
+
+    # Identify peak and low times
+    if daily_data:
+        peak_day = max(daily_data, key=lambda x: x["sentiment_score"])
+        low_day = min(daily_data, key=lambda x: x["sentiment_score"])
+    else:
+        peak_day = low_day = None
+
+    if hourly_data:
+        peak_hour = max(hourly_data, key=lambda x: x["sentiment_score"])
+        low_hour = min(hourly_data, key=lambda x: x["sentiment_score"])
+    else:
+        peak_hour = low_hour = None
+
+    # Format target info
+    target_info = {}
+    if token_symbol:
+        target_info["token_symbol"] = token_symbol
+    if blockchain_network:
+        target_info["blockchain_network"] = blockchain_network
+
+    # Return seasonality data
+    return {
+        "target": target_info,
+        "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+        "daily_patterns": daily_data,
+        "hourly_patterns": hourly_data,
+        "peak_sentiment": {
+            "day": peak_day,
+            "hour": peak_hour
+        },
+        "low_sentiment": {
+            "day": low_day,
+            "hour": low_hour
+        }
+    }
