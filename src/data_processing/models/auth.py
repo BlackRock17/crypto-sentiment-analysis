@@ -19,6 +19,7 @@ class User(Base):
     # relations
     tokens = relationship("Token", back_populates="user", cascade="all, delete-orphan")
     password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
 
 
 class Token(Base):
