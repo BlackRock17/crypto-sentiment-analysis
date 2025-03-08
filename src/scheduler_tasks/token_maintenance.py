@@ -161,3 +161,53 @@ async def auto_merge_exact_duplicates():
         logger.error(f"Error in scheduled task to auto-merge duplicate tokens: {e}")
     finally:
         db.close()
+
+
+async def archive_inactive_tokens(days_inactive: int = 90):
+    """
+    Scheduled task to archive tokens that have had no activity for a specified period.
+
+    Args:
+        days_inactive: Number of days of inactivity to consider a token inactive
+    """
+    db = next(get_db())
+    try:
+        logger.info(f"Starting scheduled task: Archiving inactive tokens (>= {days_inactive} days inactive)")
+
+        # Calculate the cutoff date
+        cutoff_date = datetime.utcnow() - timedelta(days=days_inactive)
+
+        # Get all tokens
+        tokens = db.query(BlockchainToken).all()
+
+        archived_count = 0
+
+        # For each token, check if it has had any recent activity
+        for token in tokens:
+            # Get the latest mention
+            latest_mention = db.query(func.max(TokenMention.mentioned_at)).filter(
+                TokenMention.token_id == token.id
+            ).scalar()
+
+            # If no mentions or latest mention is before cutoff date
+            if not latest_mention or latest_mention < cutoff_date:
+                # Archive the token (add an 'is_archived' flag to BlockchainToken model)
+                # For now, let's just log it
+                logger.info(
+                    f"Token {token.symbol} (ID: {token.id}) has had no activity since {latest_mention or 'ever'}")
+
+                # NOTE: To actually archive tokens, you would need to:
+                # 1. Add an 'is_archived' column to the BlockchainToken model
+                # 2. Set it to True for inactive tokens
+                # token.is_archived = True
+                # db.commit()
+
+                archived_count += 1
+
+        logger.info(f"Identified {archived_count} inactive tokens for archiving")
+        logger.info("Completed scheduled task: Archiving inactive tokens")
+
+    except Exception as e:
+        logger.error(f"Error in scheduled task to archive inactive tokens: {e}")
+    finally:
+        db.close()
