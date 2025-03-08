@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, Query, HTTPException, BackgroundTasks, Path, Body, status
+from sqlalchemy import func, desc, or_, and_
 from sqlalchemy.orm import Session
 
 from src.data_processing.database import get_db
@@ -14,7 +15,7 @@ from src.data_collection.tasks.twitter_tasks import collect_automated_tweets, ad
 from src.security.auth import get_current_superuser, get_current_active_user
 from src.data_processing.models.auth import User
 from src.data_processing.models.twitter import TwitterInfluencer, TwitterApiUsage
-from src.data_processing.models.database import BlockchainNetwork, BlockchainToken
+from src.data_processing.models.database import BlockchainNetwork, BlockchainToken, TokenMention
 from src.data_collection.twitter.config import (
     twitter_config, CollectionFrequency, get_collection_frequency_hours
 )
@@ -1301,3 +1302,64 @@ async def merge_tokens(
     # Refresh and return the updated primary token
     db.refresh(primary_token)
     return enhance_token_response(primary_token, db)
+
+
+@router.get("/tokens/archived", response_model=List[BlockchainTokenResponse])
+async def get_archived_tokens(
+        skip: int = 0,
+        limit: int = 100,
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Get list of archived (inactive) tokens.
+
+    Args:
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        List of archived tokens
+    """
+    # Query archived tokens
+    tokens = db.query(BlockchainToken).filter(
+        BlockchainToken.is_archived == True
+    ).offset(skip).limit(limit).all()
+
+    # Enhance tokens with network information
+    return [enhance_token_response(token, db) for token in tokens]
+
+
+@router.post("/tokens/{token_id}/archive", response_model=BlockchainTokenResponse)
+async def archive_token(
+        token_id: int = Path(..., gt=0),
+        archive: bool = Body(True),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Archive or unarchive a token.
+
+    Args:
+        token_id: Token ID
+        archive: Whether to archive (True) or unarchive (False)
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Updated token
+    """
+    # Check if token exists
+    token = get_blockchain_token_by_id(db, token_id)
+    if not token:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    # Update archive status
+    token.is_archived = archive
+    db.commit()
+    db.refresh(token)
+
+    # Enhance token with network information
+    return enhance_token_response(token, db)
