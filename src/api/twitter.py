@@ -1,5 +1,9 @@
+"""
+Twitter API endpoints for Solana Sentiment Analysis with support for multiple blockchain networks.
+"""
+
 import logging
-from typing import List, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, Query, HTTPException, BackgroundTasks, Path, Body, status
@@ -32,21 +36,24 @@ from src.data_processing.crud.twitter import (
 from src.data_processing.crud.read import (
     get_blockchain_network_by_id, get_blockchain_network_by_name,
     get_all_blockchain_networks, get_blockchain_token_by_id,
-    get_tokens_needing_review
+    get_tokens_needing_review, get_all_blockchain_tokens
 )
 from src.data_processing.crud.create import (
     create_blockchain_network, create_blockchain_token
 )
 from src.data_processing.crud.update import (
     update_blockchain_network, update_blockchain_token,
-    update_token_blockchain_network, mark_token_as_verified
+    update_token_blockchain_network, mark_token_as_verified,
+    merge_duplicate_tokens
 )
 from src.data_processing.crud.delete import (
-    delete_blockchain_network, delete_blockchain_token
+    delete_blockchain_network, delete_blockchain_token,
+    delete_blockchain_token_cascade
 )
 from src.exceptions import (
     BadRequestException, NotFoundException, ServerErrorException
 )
+from src.api.utils import enhance_token_response
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -484,6 +491,8 @@ async def add_manual_tweet_endpoint(
     return tweet_data
 
 
+# New endpoints for blockchain networks
+
 @router.get("/networks", response_model=List[BlockchainNetworkResponse])
 async def get_blockchain_networks(
         skip: int = 0,
@@ -671,9 +680,7 @@ async def get_blockchain_tokens(
     Returns:
         List of blockchain tokens
     """
-    from src.data_processing.crud.read import get_all_blockchain_tokens
-
-    return get_all_blockchain_tokens(
+    tokens = get_all_blockchain_tokens(
         db=db,
         skip=skip,
         limit=limit,
@@ -682,6 +689,9 @@ async def get_blockchain_tokens(
         needs_review=needs_review,
         manually_verified=manually_verified
     )
+
+    # Enhance all tokens with network information
+    return [enhance_token_response(token, db) for token in tokens]
 
 
 @router.post("/tokens", response_model=BlockchainTokenResponse, status_code=status.HTTP_201_CREATED)
@@ -701,9 +711,9 @@ async def create_blockchain_token_endpoint(
     Returns:
         Created blockchain token
     """
-    # Check if token with same address and network already exists
     from src.data_processing.crud.read import get_blockchain_token_by_address
 
+    # Check if token with same address and network already exists
     existing = get_blockchain_token_by_address(db, token.token_address, token.blockchain_network)
     if existing:
         raise BadRequestException(
@@ -722,7 +732,7 @@ async def create_blockchain_token_endpoint(
         if network:
             blockchain_network_id = network.id
 
-    return create_blockchain_token(
+    created_token = create_blockchain_token(
         db=db,
         token_address=token.token_address,
         symbol=token.symbol,
@@ -733,6 +743,9 @@ async def create_blockchain_token_endpoint(
         needs_review=False,  # Manually added tokens don't need review
         blockchain_network_id=blockchain_network_id
     )
+
+    # Enhance token with network information
+    return enhance_token_response(created_token, db)
 
 
 @router.get("/tokens/{token_id}", response_model=BlockchainTokenResponse)
@@ -756,7 +769,8 @@ async def get_blockchain_token_endpoint(
     if not token:
         raise NotFoundException(f"Token with ID {token_id} not found")
 
-    return token
+    # Enhance token with network information
+    return enhance_token_response(token, db)
 
 
 @router.put("/tokens/{token_id}", response_model=BlockchainTokenResponse)
@@ -793,7 +807,8 @@ async def update_blockchain_token_endpoint(
     if not updated:
         raise ServerErrorException("Failed to update token")
 
-    return updated
+    # Enhance token with network information
+    return enhance_token_response(updated, db)
 
 
 @router.post("/tokens/{token_id}/verify", response_model=BlockchainTokenResponse)
@@ -831,7 +846,8 @@ async def verify_blockchain_token_endpoint(
     if not updated:
         raise ServerErrorException("Failed to update token verification status")
 
-    return updated
+    # Enhance token with network information
+    return enhance_token_response(updated, db)
 
 
 @router.post("/tokens/{token_id}/set-network", response_model=BlockchainTokenResponse)
@@ -879,7 +895,8 @@ async def set_token_network_endpoint(
         if not updated:
             raise ServerErrorException("Failed to update token network")
 
-        return updated
+        # Enhance token with network information
+        return enhance_token_response(updated, db)
     except ValueError as e:
         raise BadRequestException(str(e))
 
@@ -909,7 +926,6 @@ async def delete_blockchain_token_endpoint(
     try:
         if force:
             # Use cascade delete if force is True
-            from src.data_processing.crud.delete import delete_blockchain_token_cascade
             success = delete_blockchain_token_cascade(db, token_id)
         else:
             # Normal delete with check_mentions=True
@@ -946,13 +962,16 @@ async def get_tokens_needing_review_endpoint(
     Returns:
         List of tokens needing review
     """
-    return get_tokens_needing_review(
+    tokens = get_tokens_needing_review(
         db=db,
         skip=skip,
         limit=limit,
         min_confidence=min_confidence,
         max_confidence=max_confidence
     )
+
+    # Enhance all tokens with network information
+    return [enhance_token_response(token, db) for token in tokens]
 
 
 @router.post("/tokens/{token_id}/review", response_model=BlockchainTokenResponse)
@@ -1022,7 +1041,6 @@ async def review_token_endpoint(
 
         try:
             # Merge tokens
-            from src.data_processing.crud.update import merge_duplicate_tokens
             success = merge_duplicate_tokens(
                 db=db,
                 primary_token_id=action.merge_with_id,
@@ -1033,7 +1051,7 @@ async def review_token_endpoint(
                 raise ServerErrorException("Failed to merge tokens")
 
             # Return the primary token since the duplicate is now deleted
-            return get_blockchain_token_by_id(db, action.merge_with_id)
+            return enhance_token_response(other_token, db)
 
         except Exception as e:
             raise ServerErrorException(f"Error merging tokens: {e}")
@@ -1049,4 +1067,5 @@ async def review_token_endpoint(
     else:
         raise BadRequestException(f"Unknown action: {action.action}")
 
-    return updated
+    # Enhance token with network information
+    return enhance_token_response(updated, db)
