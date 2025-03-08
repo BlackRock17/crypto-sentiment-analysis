@@ -1069,3 +1069,235 @@ async def review_token_endpoint(
 
     # Enhance token with network information
     return enhance_token_response(updated, db)
+
+
+@router.get("/tokens/uncategorized", response_model=List[BlockchainTokenResponse])
+async def get_uncategorized_tokens(
+        skip: int = 0,
+        limit: int = 100,
+        min_mentions: int = Query(1, description="Minimum number of mentions"),
+        sort_by: str = Query("mentions", description="Sort by: mentions, date, confidence"),
+        sort_order: str = Query("desc", description="Sort order: asc, desc"),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Get tokens that need categorization (blockchain network assignment).
+    These are tokens that have no assigned network or have low confidence scores.
+
+    Args:
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        min_mentions: Minimum number of mentions to include a token
+        sort_by: Field to sort by (mentions, date, confidence)
+        sort_order: Sort order (asc, desc)
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        List of tokens needing categorization
+    """
+    # Create a query for tokens that need categorization
+    query = db.query(
+        BlockchainToken,
+        func.count(TokenMention.id).label("mention_count")
+    ).outerjoin(
+        TokenMention, TokenMention.token_id == BlockchainToken.id
+    ).filter(
+        or_(
+            BlockchainToken.blockchain_network == None,  # No network assigned
+            and_(
+                BlockchainToken.network_confidence < 0.7,  # Low confidence score
+                BlockchainToken.manually_verified == False  # Not manually verified
+            ),
+            BlockchainToken.needs_review == True  # Explicitly flagged for review
+        )
+    ).group_by(
+        BlockchainToken.id
+    ).having(
+        func.count(TokenMention.id) >= min_mentions
+    )
+
+    # Apply sorting
+    if sort_by == "mentions":
+        query = query.order_by(desc("mention_count") if sort_order == "desc" else "mention_count")
+    elif sort_by == "date":
+        query = query.order_by(desc(BlockchainToken.created_at) if sort_order == "desc" else BlockchainToken.created_at)
+    elif sort_by == "confidence":
+        query = query.order_by(
+            desc(BlockchainToken.network_confidence) if sort_order == "desc" else BlockchainToken.network_confidence)
+
+    # Apply pagination
+    query = query.offset(skip).limit(limit)
+
+    # Execute query
+    results = query.all()
+
+    # Format results
+    tokens = []
+    for token, mention_count in results:
+        token_dict = enhance_token_response(token, db)
+        token_dict["mention_count"] = mention_count
+        tokens.append(token_dict)
+
+    return tokens
+
+
+@router.get("/tokens/duplicates", response_model=List[Dict[str, Any]])
+async def get_potential_duplicate_tokens(
+        min_similarity: float = Query(0.8, ge=0, le=1, description="Minimum similarity score"),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Get potential duplicate tokens based on symbol similarity.
+
+    Args:
+        min_similarity: Minimum similarity score (0-1)
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        List of potential duplicate groups
+    """
+    # Get all tokens
+    tokens = db.query(BlockchainToken).all()
+
+    # Group tokens by normalized symbols
+    symbol_groups = {}
+    for token in tokens:
+        # Normalize symbol (e.g., remove special characters, lowercase)
+        normalized_symbol = token.symbol.lower().strip()
+
+        if normalized_symbol not in symbol_groups:
+            symbol_groups[normalized_symbol] = []
+
+        symbol_groups[normalized_symbol].append(token)
+
+    # Find groups with multiple tokens
+    duplicate_groups = []
+    for symbol, token_group in symbol_groups.items():
+        if len(token_group) > 1:
+            # Enhance tokens with network info and mention count
+            enhanced_tokens = []
+            for token in token_group:
+                # Get mention count
+                mention_count = db.query(func.count(TokenMention.id)).filter(
+                    TokenMention.token_id == token.id
+                ).scalar()
+
+                # Enhance token
+                enhanced_token = enhance_token_response(token, db)
+                enhanced_token["mention_count"] = mention_count
+                enhanced_tokens.append(enhanced_token)
+
+            duplicate_groups.append({
+                "symbol": symbol,
+                "tokens": enhanced_tokens,
+                "total_tokens": len(token_group)
+            })
+
+    # Sort groups by number of tokens (descending)
+    duplicate_groups.sort(key=lambda g: g["total_tokens"], reverse=True)
+
+    return duplicate_groups
+
+
+@router.post("/tokens/{token_id}/categorize", response_model=BlockchainTokenResponse)
+async def categorize_token(
+        token_id: int = Path(..., gt=0),
+        network_id: int = Body(..., gt=0),
+        confidence: float = Body(1.0, ge=0, le=1),
+        notes: Optional[str] = Body(None),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Categorize a token by assigning it to a blockchain network.
+
+    Args:
+        token_id: Token ID
+        network_id: Blockchain network ID
+        confidence: Confidence in the categorization (0-1)
+        notes: Optional notes about the categorization
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Updated token
+    """
+    # Check if token exists
+    token = get_blockchain_token_by_id(db, token_id)
+    if not token:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    # Check if network exists
+    network = get_blockchain_network_by_id(db, network_id)
+    if not network:
+        raise NotFoundException(f"Network with ID {network_id} not found")
+
+    # Update token with the assigned network
+    updated_token = update_token_blockchain_network(
+        db=db,
+        token_id=token_id,
+        blockchain_network_id=network_id,
+        confidence=confidence,
+        manually_verified=True,  # It's manually verified since an admin is doing it
+        needs_review=False  # No longer needs review after categorization
+    )
+
+    if not updated_token:
+        raise ServerErrorException("Failed to update token")
+
+    # TODO: If you want to keep track of who categorized the token and when,
+    # you could add a TokenCategorizationHistory model and record it here
+
+    # Enhance token with network information
+    return enhance_token_response(updated_token, db)
+
+
+@router.post("/tokens/merge", response_model=BlockchainTokenResponse)
+async def merge_tokens(
+        primary_token_id: int = Body(..., gt=0),
+        duplicate_token_ids: List[int] = Body(...),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Merge duplicate tokens by moving all mentions to the primary token.
+
+    Args:
+        primary_token_id: ID of the primary token to keep
+        duplicate_token_ids: List of IDs of duplicate tokens to merge into the primary
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Updated primary token
+    """
+    # Check if primary token exists
+    primary_token = get_blockchain_token_by_id(db, primary_token_id)
+    if not primary_token:
+        raise NotFoundException(f"Primary token with ID {primary_token_id} not found")
+
+    # Check if all duplicate tokens exist
+    for dup_id in duplicate_token_ids:
+        if not get_blockchain_token_by_id(db, dup_id):
+            raise NotFoundException(f"Duplicate token with ID {dup_id} not found")
+
+    # Merge each duplicate token into the primary
+    for dup_id in duplicate_token_ids:
+        try:
+            # Skip if it's the same as primary token
+            if dup_id == primary_token_id:
+                continue
+
+            success = merge_duplicate_tokens(db, primary_token_id, dup_id)
+            if not success:
+                logger.warning(f"Failed to merge token {dup_id} into {primary_token_id}")
+        except Exception as e:
+            logger.error(f"Error merging token {dup_id}: {e}")
+
+    # Refresh and return the updated primary token
+    db.refresh(primary_token)
+    return enhance_token_response(primary_token, db)
