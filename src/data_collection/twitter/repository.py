@@ -105,9 +105,16 @@ class TwitterRepository:
                 symbol = token_info["symbol"]
                 blockchain_network = token_info.get("blockchain_network")
                 network_confidence = token_info.get("network_confidence", 0.0)
+                needs_review = token_info.get("needs_review", False)
 
                 # Find or create token
-                token = self._find_or_create_token(symbol, blockchain_network, network_confidence)
+                token = self._find_or_create_token(
+                    symbol,
+                    blockchain_network,
+                    network_confidence,
+                    needs_review=needs_review or network_confidence < 0.5  # Mark for review if confidence is low
+                )
+
                 if not token:
                     logger.warning(f"Could not find or create token with symbol {symbol}")
                     continue
@@ -136,7 +143,8 @@ class TwitterRepository:
             self,
             symbol: str,
             blockchain_network: Optional[str] = None,
-            network_confidence: float = 0.0
+            network_confidence: float = 0.0,
+            needs_review: bool = False
     ) -> Optional[BlockchainToken]:
         """
         Find an existing token or create a new one if it doesn't exist.
@@ -145,13 +153,14 @@ class TwitterRepository:
             symbol: Token symbol (e.g., "SOL")
             blockchain_network: Blockchain network name or None if unknown
             network_confidence: Confidence level in network identification (0-1)
+            needs_review: Whether this token needs manual review
 
         Returns:
             BlockchainToken instance or None if failed
         """
         try:
             token = None
-            needs_review = False
+            needs_review = needs_review  # This might be set based on confidence or explicitly
 
             # First try to find token by symbol and network
             if blockchain_network:
@@ -180,8 +189,16 @@ class TwitterRepository:
                     # Only update if the current confidence is higher
                     if network_confidence > token.network_confidence:
                         token.network_confidence = network_confidence
+                        token.needs_review = needs_review
                         self.db.commit()
-                return token
+                    return token
+                elif not token.manually_verified and not blockchain_network:
+                    # If we found a token but without a verified network, and we don't have a network,
+                    # still use it but update the review flag if needed
+                    if needs_review and not token.needs_review:
+                        token.needs_review = True
+                        self.db.commit()
+                    return token
 
             # Create new token if it doesn't exist
             # For new tokens without a network or low confidence, mark them for review
