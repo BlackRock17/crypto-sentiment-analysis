@@ -1,5 +1,6 @@
-from typing import Type, List
+from typing import Type, List, Tuple
 
+from sqlalchemy import func, or_, and_, desc
 from sqlalchemy.orm import Session
 
 from src.data_processing.models import BlockchainToken
@@ -429,3 +430,46 @@ def get_all_blockchain_networks(
         query = query.filter(BlockchainNetwork.is_active == True)
 
     return query.offset(skip).limit(limit).all()
+
+
+def get_tokens_needing_categorization(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        min_mentions: int = 1
+) -> List[Tuple[BlockchainToken, int]]:
+    """
+    Get tokens that need blockchain network categorization, along with their mention counts.
+
+    Args:
+        db: Database session
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        min_mentions: Minimum number of mentions to include
+
+    Returns:
+        List of tuples (BlockchainToken, mention_count)
+    """
+    query = db.query(
+        BlockchainToken,
+        func.count(TokenMention.id).label("mention_count")
+    ).outerjoin(
+        TokenMention, TokenMention.token_id == BlockchainToken.id
+    ).filter(
+        or_(
+            BlockchainToken.blockchain_network == None,  # No network assigned
+            and_(
+                BlockchainToken.network_confidence < 0.7,  # Low confidence score
+                BlockchainToken.manually_verified == False  # Not manually verified
+            ),
+            BlockchainToken.needs_review == True  # Explicitly flagged for review
+        )
+    ).group_by(
+        BlockchainToken.id
+    ).having(
+        func.count(TokenMention.id) >= min_mentions
+    ).order_by(
+        desc("mention_count")
+    ).offset(skip).limit(limit)
+
+    return query.all()
