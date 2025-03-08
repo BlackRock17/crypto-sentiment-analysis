@@ -52,9 +52,10 @@ class BlockchainToken(Base):
                                    nullable=True)  # Network ID or NULL if unknown
     network_confidence = Column(Float, default=0.0)  # Confidence in network determination (0-1)
     manually_verified = Column(Boolean, default=False)  # Whether manually verified
+    needs_review = Column(Boolean, default=False)  # Whether needs review
+    is_archived = Column(Boolean, default=False)  # Whether token is archived (inactive)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    needs_review = Column(Boolean, default=False)  # Whether needs review
 
     # References the blockchain_network field for backward compatibility
     blockchain_network = Column(String(50), nullable=True)
