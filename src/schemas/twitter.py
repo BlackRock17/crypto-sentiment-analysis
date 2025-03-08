@@ -232,3 +232,33 @@ class TokenMentionStats(BaseModel):
     sentiment_score: float  # -1 to 1 scale
     first_seen: datetime
     last_seen: datetime
+    sentiment_distribution: Dict[str, Dict[str, Union[int, float]]]
+
+
+class TokenSimilarity(BaseModel):
+    """Token similarity information"""
+    id: int
+    symbol: str
+    name: Optional[str] = None
+    blockchain_network: Optional[str] = None
+    similarity: float
+
+
+class TokenMergeRequest(BaseModel):
+    """Request for merging tokens"""
+    primary_token_id: int
+    duplicate_token_ids: List[int]
+
+
+class TokenCategorizationRequest(BaseModel):
+    """Request for categorizing a token"""
+    network_id: int
+    confidence: float = Field(1.0, ge=0, le=1)
+    notes: Optional[str] = None
+
+
+class DuplicateTokenGroup(BaseModel):
+    """Group of potential duplicate tokens"""
+    symbol: str
+    tokens: List[BlockchainTokenResponse]
+    total_tokens: int
