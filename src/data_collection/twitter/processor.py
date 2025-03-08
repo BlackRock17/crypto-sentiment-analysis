@@ -258,8 +258,8 @@ class TwitterDataProcessor:
 
         return networks_confidence
 
-    def _determine_network_from_context(self, symbol: str, detected_networks: Dict[str, float],
-                                        text_context: str) -> Tuple[Optional[str], float]:
+    def _determine_network_from_context(self, symbol: str, detected_networks: Dict[str, float], text_context: str) -> \
+    Tuple[Optional[str], float]:
         """
         Determine the most likely blockchain network for a token based on context.
 
@@ -283,6 +283,18 @@ class TwitterDataProcessor:
             # Check for Solana token patterns (often have uppercase names)
             if symbol.isupper() and len(symbol) <= 5:
                 return "solana", 0.3
+
+            # Check for Ethereum token patterns (often start with "0x")
+            if symbol.startswith("0x"):
+                return "ethereum", 0.4
+
+            # Check for Binance Smart Chain patterns (often have "BNB" or "BSC" in context)
+            if "bnb" in text_context or "bsc" in text_context or "binance smart chain" in text_context:
+                return "binance", 0.4
+
+            # Check for Polygon (MATIC) tokens
+            if "polygon" in text_context or "matic" in text_context:
+                return "polygon", 0.3
 
             # Check for Ethereum token patterns (often have "ETH" in context)
             eth_indicators = ["ethereum", "eth ", "on eth", "eth blockchain"]
