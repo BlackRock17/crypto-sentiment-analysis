@@ -881,3 +881,146 @@ def get_sentiment_momentum(
     results["tokens"] = sorted_tokens
 
     return results
+
+
+def get_token_mention_stats(
+        db: Session,
+        token_id: int
+) -> Dict[str, Any]:
+    """
+    Get mention statistics for a specific token.
+
+    Args:
+        db: Database session
+        token_id: Token ID
+
+    Returns:
+        Dictionary with token mention statistics
+    """
+    # Get the token
+    token = db.query(BlockchainToken).filter(BlockchainToken.id == token_id).first()
+    if not token:
+        raise ValueError(f"Token with ID {token_id} not found")
+
+    # Get mention count
+    mention_count = db.query(func.count(TokenMention.id)).filter(
+        TokenMention.token_id == token_id
+    ).scalar()
+
+    # Get first and last mention dates
+    first_mention = db.query(func.min(TokenMention.mentioned_at)).filter(
+        TokenMention.token_id == token_id
+    ).scalar()
+
+    last_mention = db.query(func.max(TokenMention.mentioned_at)).filter(
+        TokenMention.token_id == token_id
+    ).scalar()
+
+    # Get sentiment distribution
+    sentiment_query = db.query(
+        SentimentAnalysis.sentiment,
+        func.count(SentimentAnalysis.id).label("count")
+    ).join(
+        Tweet, Tweet.id == SentimentAnalysis.tweet_id
+    ).join(
+        TokenMention, TokenMention.tweet_id == Tweet.id
+    ).filter(
+        TokenMention.token_id == token_id
+    ).group_by(
+        SentimentAnalysis.sentiment
+    ).all()
+
+    sentiment_counts = {s.value: 0 for s in SentimentEnum}
+    for sentiment, count in sentiment_query:
+        sentiment_counts[sentiment.value] = count
+
+    total_sentiment = sum(sentiment_counts.values())
+
+    # Calculate sentiment score (-1 to 1)
+    sentiment_score = 0
+    if total_sentiment > 0:
+        sentiment_score = (sentiment_counts["positive"] - sentiment_counts["negative"]) / total_sentiment
+
+    # Prepare result
+    return {
+        "token_id": token.id,
+        "token_symbol": token.symbol,
+        "token_name": token.name,
+        "blockchain_network": token.blockchain_network,
+        "mention_count": mention_count,
+        "first_seen": first_mention,
+        "last_seen": last_mention,
+        "sentiment_score": sentiment_score,
+        "sentiment_distribution": {
+            sentiment: {
+                "count": count,
+                "percentage": round((count / total_sentiment) * 100, 1) if total_sentiment > 0 else 0
+            }
+            for sentiment, count in sentiment_counts.items()
+        }
+    }
+
+
+def find_similar_tokens(
+        db: Session,
+        token_symbol: str,
+        min_similarity: float = 0.7,
+        exclude_token_id: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """
+    Find tokens with similar symbols.
+
+    Args:
+        db: Database session
+        token_symbol: Token symbol to compare with
+        min_similarity: Minimum similarity score (0-1)
+        exclude_token_id: Optional token ID to exclude
+
+    Returns:
+        List of similar tokens with similarity scores
+    """
+    # Get all tokens
+    query = db.query(BlockchainToken)
+
+    # Exclude the specified token if needed
+    if exclude_token_id is not None:
+        query = query.filter(BlockchainToken.id != exclude_token_id)
+
+    all_tokens = query.all()
+
+    # Calculate similarity for each token
+    similar_tokens = []
+
+    # Normalize the input symbol
+    normalized_symbol = token_symbol.lower().strip()
+
+    for token in all_tokens:
+        # Normalize the token symbol
+        token_normalized = token.symbol.lower().strip()
+
+        # Calculate similarity (simple matching for now)
+        # In a real implementation, you might want to use a more sophisticated similarity metric
+        if normalized_symbol == token_normalized:
+            similarity = 1.0
+        elif normalized_symbol in token_normalized or token_normalized in normalized_symbol:
+            # Partial match
+            similarity = len(min(normalized_symbol, token_normalized)) / len(max(normalized_symbol, token_normalized))
+        else:
+            # Different symbols
+            continue
+
+        # Check if similarity meets the threshold
+        if similarity >= min_similarity:
+            token_dict = {
+                "id": token.id,
+                "symbol": token.symbol,
+                "name": token.name,
+                "blockchain_network": token.blockchain_network,
+                "similarity": similarity
+            }
+            similar_tokens.append(token_dict)
+
+    # Sort by similarity (descending)
+    similar_tokens.sort(key=lambda t: t["similarity"], reverse=True)
+
+    return similar_tokens
