@@ -1,7 +1,3 @@
-"""
-Twitter API endpoints for Solana Sentiment Analysis.
-"""
-
 import logging
 from typing import List, Optional
 from datetime import datetime, date
@@ -14,6 +10,7 @@ from src.data_collection.tasks.twitter_tasks import collect_automated_tweets, ad
 from src.security.auth import get_current_superuser, get_current_active_user
 from src.data_processing.models.auth import User
 from src.data_processing.models.twitter import TwitterInfluencer, TwitterApiUsage
+from src.data_processing.models.database import BlockchainNetwork, BlockchainToken
 from src.data_collection.twitter.config import (
     twitter_config, CollectionFrequency, get_collection_frequency_hours
 )
@@ -21,12 +18,31 @@ from src.data_collection.twitter.repository import TwitterRepository
 from src.schemas.twitter import (
     InfluencerCreate, InfluencerUpdate, InfluencerResponse,
     ManualTweetCreate, TweetResponse, ApiUsageResponse,
-    TwitterSettingsUpdate, TwitterSettingsResponse
+    TwitterSettingsUpdate, TwitterSettingsResponse,
+    # New schema imports for blockchain networks
+    BlockchainNetworkCreate, BlockchainNetworkUpdate, BlockchainNetworkResponse,
+    BlockchainTokenCreate, BlockchainTokenUpdate, BlockchainTokenResponse,
+    TokenReviewAction
 )
 from src.data_processing.crud.twitter import (
     create_influencer, get_influencer, get_all_influencers,
     update_influencer, delete_influencer, toggle_influencer_automation,
     get_api_usage_stats, get_api_usage_history, get_influencer_by_username
+)
+from src.data_processing.crud.read import (
+    get_blockchain_network_by_id, get_blockchain_network_by_name,
+    get_all_blockchain_networks, get_blockchain_token_by_id,
+    get_tokens_needing_review
+)
+from src.data_processing.crud.create import (
+    create_blockchain_network, create_blockchain_token
+)
+from src.data_processing.crud.update import (
+    update_blockchain_network, update_blockchain_token,
+    update_token_blockchain_network, mark_token_as_verified
+)
+from src.data_processing.crud.delete import (
+    delete_blockchain_network, delete_blockchain_token
 )
 from src.exceptions import (
     BadRequestException, NotFoundException, ServerErrorException
@@ -466,3 +482,571 @@ async def add_manual_tweet_endpoint(
         raise ServerErrorException("Failed to retrieve stored tweet")
 
     return tweet_data
+
+
+@router.get("/networks", response_model=List[BlockchainNetworkResponse])
+async def get_blockchain_networks(
+        skip: int = 0,
+        limit: int = 100,
+        active_only: bool = False,
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Get list of blockchain networks.
+
+    Args:
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        active_only: Only return active networks
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        List of blockchain networks
+    """
+    return get_all_blockchain_networks(db, skip, limit, active_only)
+
+
+@router.post("/networks", response_model=BlockchainNetworkResponse, status_code=status.HTTP_201_CREATED)
+async def create_blockchain_network_endpoint(
+        network: BlockchainNetworkCreate,
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Create a new blockchain network.
+
+    Args:
+        network: Network data
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Created blockchain network
+    """
+    # Check if network with this name already exists
+    existing = get_blockchain_network_by_name(db, network.name)
+    if existing:
+        raise BadRequestException(f"Network with name '{network.name}' already exists")
+
+    return create_blockchain_network(
+        db=db,
+        name=network.name,
+        display_name=network.display_name,
+        description=network.description,
+        hashtags=network.hashtags,
+        keywords=network.keywords,
+        icon_url=network.icon_url,
+        is_active=network.is_active,
+        website_url=network.website_url,
+        explorer_url=network.explorer_url,
+        launch_date=network.launch_date
+    )
+
+
+@router.get("/networks/{network_id}", response_model=BlockchainNetworkResponse)
+async def get_blockchain_network_endpoint(
+        network_id: int = Path(..., gt=0),
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Get a blockchain network by ID.
+
+    Args:
+        network_id: Network ID
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Network data
+    """
+    network = get_blockchain_network_by_id(db, network_id)
+    if not network:
+        raise NotFoundException(f"Network with ID {network_id} not found")
+
+    return network
+
+
+@router.put("/networks/{network_id}", response_model=BlockchainNetworkResponse)
+async def update_blockchain_network_endpoint(
+        network_id: int = Path(..., gt=0),
+        network_data: BlockchainNetworkUpdate = Body(...),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Update a blockchain network.
+
+    Args:
+        network_id: Network ID
+        network_data: Updated network data
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Updated network
+    """
+    # Check if network exists
+    existing = get_blockchain_network_by_id(db, network_id)
+    if not existing:
+        raise NotFoundException(f"Network with ID {network_id} not found")
+
+    # If name is being updated, check for uniqueness
+    if network_data.name and network_data.name != existing.name:
+        name_exists = get_blockchain_network_by_name(db, network_data.name)
+        if name_exists:
+            raise BadRequestException(f"Network with name '{network_data.name}' already exists")
+
+    # Update network
+    updated = update_blockchain_network(
+        db=db,
+        network_id=network_id,
+        **network_data.model_dump(exclude_unset=True)
+    )
+
+    if not updated:
+        raise ServerErrorException("Failed to update network")
+
+    return updated
+
+
+@router.delete("/networks/{network_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_blockchain_network_endpoint(
+        network_id: int = Path(..., gt=0),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Delete a blockchain network.
+
+    Args:
+        network_id: Network ID
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+    """
+    # Check if network exists
+    existing = get_blockchain_network_by_id(db, network_id)
+    if not existing:
+        raise NotFoundException(f"Network with ID {network_id} not found")
+
+    # Delete network
+    try:
+        success = delete_blockchain_network(db, network_id)
+        if not success:
+            raise ServerErrorException("Failed to delete network")
+    except ValueError as e:
+        raise BadRequestException(str(e))
+
+    return None
+
+
+# Endpoints for token management
+
+@router.get("/tokens", response_model=List[BlockchainTokenResponse])
+async def get_blockchain_tokens(
+        skip: int = 0,
+        limit: int = 100,
+        symbol_filter: Optional[str] = None,
+        network_filter: Optional[str] = None,
+        needs_review: Optional[bool] = None,
+        manually_verified: Optional[bool] = None,
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Get list of blockchain tokens with optional filtering.
+
+    Args:
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        symbol_filter: Filter by token symbol
+        network_filter: Filter by blockchain network
+        needs_review: Filter by needs_review flag
+        manually_verified: Filter by manually_verified flag
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        List of blockchain tokens
+    """
+    from src.data_processing.crud.read import get_all_blockchain_tokens
+
+    return get_all_blockchain_tokens(
+        db=db,
+        skip=skip,
+        limit=limit,
+        symbol_filter=symbol_filter,
+        blockchain_network=network_filter,
+        needs_review=needs_review,
+        manually_verified=manually_verified
+    )
+
+
+@router.post("/tokens", response_model=BlockchainTokenResponse, status_code=status.HTTP_201_CREATED)
+async def create_blockchain_token_endpoint(
+        token: BlockchainTokenCreate,
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Create a new blockchain token.
+
+    Args:
+        token: Token data
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Created blockchain token
+    """
+    # Check if token with same address and network already exists
+    from src.data_processing.crud.read import get_blockchain_token_by_address
+
+    existing = get_blockchain_token_by_address(db, token.token_address, token.blockchain_network)
+    if existing:
+        raise BadRequestException(
+            f"Token with address '{token.token_address}' already exists on network '{token.blockchain_network}'")
+
+    # Validate network if provided
+    if token.blockchain_network:
+        network = get_blockchain_network_by_name(db, token.blockchain_network)
+        if not network:
+            raise BadRequestException(f"Blockchain network '{token.blockchain_network}' does not exist")
+
+    # Get blockchain_network_id if network is provided
+    blockchain_network_id = None
+    if token.blockchain_network:
+        network = get_blockchain_network_by_name(db, token.blockchain_network)
+        if network:
+            blockchain_network_id = network.id
+
+    return create_blockchain_token(
+        db=db,
+        token_address=token.token_address,
+        symbol=token.symbol,
+        name=token.name,
+        blockchain_network=token.blockchain_network,
+        network_confidence=token.network_confidence or 1.0,  # Default to 1.0 for manually added tokens
+        manually_verified=True,  # Manually added tokens are verified by default
+        needs_review=False,  # Manually added tokens don't need review
+        blockchain_network_id=blockchain_network_id
+    )
+
+
+@router.get("/tokens/{token_id}", response_model=BlockchainTokenResponse)
+async def get_blockchain_token_endpoint(
+        token_id: int = Path(..., gt=0),
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Get a blockchain token by ID.
+
+    Args:
+        token_id: Token ID
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Token data
+    """
+    token = get_blockchain_token_by_id(db, token_id)
+    if not token:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    return token
+
+
+@router.put("/tokens/{token_id}", response_model=BlockchainTokenResponse)
+async def update_blockchain_token_endpoint(
+        token_id: int = Path(..., gt=0),
+        token_data: BlockchainTokenUpdate = Body(...),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Update a blockchain token.
+
+    Args:
+        token_id: Token ID
+        token_data: Updated token data
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Updated token
+    """
+    # Check if token exists
+    existing = get_blockchain_token_by_id(db, token_id)
+    if not existing:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    # Update token
+    updated = update_blockchain_token(
+        db=db,
+        token_id=token_id,
+        **token_data.model_dump(exclude_unset=True)
+    )
+
+    if not updated:
+        raise ServerErrorException("Failed to update token")
+
+    return updated
+
+
+@router.post("/tokens/{token_id}/verify", response_model=BlockchainTokenResponse)
+async def verify_blockchain_token_endpoint(
+        token_id: int = Path(..., gt=0),
+        verified: bool = Query(True),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Mark a blockchain token as verified or unverified.
+
+    Args:
+        token_id: Token ID
+        verified: Whether the token is verified
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Updated token
+    """
+    # Check if token exists
+    existing = get_blockchain_token_by_id(db, token_id)
+    if not existing:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    # Mark token as verified/unverified
+    updated = mark_token_as_verified(
+        db=db,
+        token_id=token_id,
+        verified=verified,
+        needs_review=False  # Once reviewed, it no longer needs review
+    )
+
+    if not updated:
+        raise ServerErrorException("Failed to update token verification status")
+
+    return updated
+
+
+@router.post("/tokens/{token_id}/set-network", response_model=BlockchainTokenResponse)
+async def set_token_network_endpoint(
+        token_id: int = Path(..., gt=0),
+        network_id: int = Query(..., gt=0),
+        confidence: float = Query(1.0),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Set the blockchain network for a token.
+
+    Args:
+        token_id: Token ID
+        network_id: Blockchain network ID
+        confidence: Confidence level in network determination
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Updated token
+    """
+    # Check if token exists
+    token = get_blockchain_token_by_id(db, token_id)
+    if not token:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    # Check if network exists
+    network = get_blockchain_network_by_id(db, network_id)
+    if not network:
+        raise NotFoundException(f"Network with ID {network_id} not found")
+
+    # Update token network
+    try:
+        updated = update_token_blockchain_network(
+            db=db,
+            token_id=token_id,
+            blockchain_network_id=network_id,
+            confidence=confidence,
+            manually_verified=True,
+            needs_review=False
+        )
+
+        if not updated:
+            raise ServerErrorException("Failed to update token network")
+
+        return updated
+    except ValueError as e:
+        raise BadRequestException(str(e))
+
+
+@router.delete("/tokens/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_blockchain_token_endpoint(
+        token_id: int = Path(..., gt=0),
+        force: bool = Query(False),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Delete a blockchain token.
+
+    Args:
+        token_id: Token ID
+        force: Whether to force deletion even if token has mentions
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+    """
+    # Check if token exists
+    existing = get_blockchain_token_by_id(db, token_id)
+    if not existing:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    # Delete token
+    try:
+        if force:
+            # Use cascade delete if force is True
+            from src.data_processing.crud.delete import delete_blockchain_token_cascade
+            success = delete_blockchain_token_cascade(db, token_id)
+        else:
+            # Normal delete with check_mentions=True
+            success = delete_blockchain_token(db, token_id, check_mentions=True)
+
+        if not success:
+            raise ServerErrorException("Failed to delete token")
+    except ValueError as e:
+        raise BadRequestException(str(e))
+
+    return None
+
+
+@router.get("/tokens/review", response_model=List[BlockchainTokenResponse])
+async def get_tokens_needing_review_endpoint(
+        skip: int = 0,
+        limit: int = 100,
+        min_confidence: Optional[float] = None,
+        max_confidence: Optional[float] = None,
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Get tokens that need review.
+
+    Args:
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        min_confidence: Minimum confidence level
+        max_confidence: Maximum confidence level
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        List of tokens needing review
+    """
+    return get_tokens_needing_review(
+        db=db,
+        skip=skip,
+        limit=limit,
+        min_confidence=min_confidence,
+        max_confidence=max_confidence
+    )
+
+
+@router.post("/tokens/{token_id}/review", response_model=BlockchainTokenResponse)
+async def review_token_endpoint(
+        token_id: int = Path(..., gt=0),
+        action: TokenReviewAction = Body(...),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Review a token and take an action.
+
+    Args:
+        token_id: Token ID
+        action: Review action to take
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Updated token
+    """
+    # Check if token exists
+    token = get_blockchain_token_by_id(db, token_id)
+    if not token:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    if action.action == "approve_network":
+        # Approve the current network
+        if not token.blockchain_network_id:
+            raise BadRequestException("Token has no blockchain network to approve")
+
+        updated = mark_token_as_verified(
+            db=db,
+            token_id=token_id,
+            verified=True,
+            needs_review=False
+        )
+
+    elif action.action == "set_network":
+        # Set a new network
+        if not action.network_id:
+            raise BadRequestException("network_id is required for set_network action")
+
+        # Check if network exists
+        network = get_blockchain_network_by_id(db, action.network_id)
+        if not network:
+            raise NotFoundException(f"Network with ID {action.network_id} not found")
+
+        updated = update_token_blockchain_network(
+            db=db,
+            token_id=token_id,
+            blockchain_network_id=action.network_id,
+            confidence=1.0,
+            manually_verified=True,
+            needs_review=False
+        )
+
+    elif action.action == "merge":
+        # Merge with another token
+        if not action.merge_with_id:
+            raise BadRequestException("merge_with_id is required for merge action")
+
+        # Check if the other token exists
+        other_token = get_blockchain_token_by_id(db, action.merge_with_id)
+        if not other_token:
+            raise NotFoundException(f"Token with ID {action.merge_with_id} not found")
+
+        try:
+            # Merge tokens
+            from src.data_processing.crud.update import merge_duplicate_tokens
+            success = merge_duplicate_tokens(
+                db=db,
+                primary_token_id=action.merge_with_id,
+                duplicate_token_id=token_id
+            )
+
+            if not success:
+                raise ServerErrorException("Failed to merge tokens")
+
+            # Return the primary token since the duplicate is now deleted
+            return get_blockchain_token_by_id(db, action.merge_with_id)
+
+        except Exception as e:
+            raise ServerErrorException(f"Error merging tokens: {e}")
+
+    elif action.action == "reject":
+        # Mark for more review later
+        updated = update_blockchain_token(
+            db=db,
+            token_id=token_id,
+            needs_review=True
+        )
+
+    else:
+        raise BadRequestException(f"Unknown action: {action.action}")
+
+    return updated
