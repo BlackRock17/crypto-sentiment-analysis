@@ -200,7 +200,8 @@ class TwitterDataProcessor:
                 "symbol": symbol_upper,
                 "blockchain_network": network,
                 "network_confidence": confidence,
-                "context": {"source": "context_analysis"}
+                "context": {"source": "context_analysis"},
+                "needs_review": confidence < 0.7  # Mark for review if confidence is low
             }
 
         # If no network could be determined with confidence
@@ -208,7 +209,8 @@ class TwitterDataProcessor:
             "symbol": symbol_upper,
             "blockchain_network": None,
             "network_confidence": 0.0,
-            "context": {"source": "unknown"}
+            "context": {"source": "unknown"},
+            "needs_review": True  # Always mark unknown tokens for review
         }
 
     def _detect_blockchain_networks(self, text: str, hashtags: List[str]) -> Dict[str, float]:
