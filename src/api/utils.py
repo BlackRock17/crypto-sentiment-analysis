@@ -11,7 +11,7 @@ from src.data_processing.models.database import BlockchainToken, BlockchainNetwo
 T = TypeVar('T')
 
 
-def enrich_token_with_network_info(token: BlockchainToken, db: Session) -> Dict[str, Any]:
+def enhance_token_response(token: BlockchainToken, db: Session) -> Dict[str, Any]:
     """
     Enhance a token model with network information for API responses.
 
@@ -50,17 +50,3 @@ def enrich_token_with_network_info(token: BlockchainToken, db: Session) -> Dict[
             token_dict["network_display_name"] = network.display_name
 
     return token_dict
-
-
-def enhance_token_response(token: BlockchainToken, db: Session) -> Dict[str, Any]:
-    """
-    Convenience function for enhancing token responses in API endpoints.
-
-    Args:
-        token: BlockchainToken instance
-        db: Database session
-
-    Returns:
-        Enhanced token dictionary ready for API response
-    """
-    return enrich_token_with_network_info(token, db)
