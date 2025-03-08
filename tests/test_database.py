@@ -1,7 +1,8 @@
 # tests/test_database.py
 from datetime import datetime
 from src.data_processing.database import get_db
-from src.data_processing.models.database import Tweet, SentimentAnalysis, SolanaToken, TokenMention, SentimentEnum
+from src.data_processing.models.database import Tweet, SentimentAnalysis, BlockchainToken, TokenMention, SentimentEnum, \
+    BlockchainNetwork
 
 
 def test_database_connection():
@@ -18,17 +19,33 @@ def test_database_connection():
 def add_test_data(db):
     """Add test data"""
     try:
-        # 1. Create a test token
-        solana_token = SolanaToken(
+        # 1. Create a test blockchain network
+        blockchain_network = BlockchainNetwork(
+            name="solana",
+            display_name="Solana",
+            description="Solana blockchain network",
+            hashtags=["solana", "sol", "solanasummer"],
+            keywords=["solana", "sol", "phantom wallet"]
+        )
+        db.add(blockchain_network)
+        db.commit()
+        print("✓ Test blockchain network successfully added!")
+
+        # 2. Create a test token
+        blockchain_token = BlockchainToken(
             token_address="So11111111111111111111111111111111111111112",
             symbol="SOL",
-            name="Solana"
+            name="Solana",
+            blockchain_network="solana",
+            blockchain_network_id=blockchain_network.id,
+            network_confidence=1.0,
+            manually_verified=True
         )
-        db.add(solana_token)
+        db.add(blockchain_token)
         db.commit()
         print("✓ Test token successfully added!")
 
-        # 2. Create a test tweet
+        # 3. Create a test tweet
         tweet = Tweet(
             tweet_id="1234567890",
             text="Solana ($SOL) is performing great today! #solana",
@@ -40,7 +57,7 @@ def add_test_data(db):
         db.commit()
         print("✓ Test tweet added successfully!")
 
-        # 3. Add sentiment analysis
+        # 4. Add sentiment analysis
         sentiment = SentimentAnalysis(
             tweet_id=tweet.id,
             sentiment=SentimentEnum.POSITIVE,
@@ -48,12 +65,12 @@ def add_test_data(db):
         )
         db.add(sentiment)
         db.commit()
-        print("✓ Mood analysis successfully added!")
+        print("✓ Sentiment analysis successfully added!")
 
-        # 4. Creating a link between the tweet and the token
+        # 5. Creating a link between the tweet and the token
         mention = TokenMention(
             tweet_id=tweet.id,
-            token_id=solana_token.id
+            token_id=blockchain_token.id
         )
         db.add(mention)
         db.commit()
@@ -69,9 +86,13 @@ def add_test_data(db):
 def verify_data(db):
     """Checking the added data"""
     try:
+        # Check for the blockchain network
+        network = db.query(BlockchainNetwork).filter_by(name="solana").first()
+        print(f"Blockchain network found: {network.name} ({network.display_name})")
+
         # Check for the token
-        token = db.query(SolanaToken).filter_by(symbol="SOL").first()
-        print(f"Token found: {token.symbol} ({token.name})")
+        token = db.query(BlockchainToken).filter_by(symbol="SOL").first()
+        print(f"Token found: {token.symbol} ({token.name}) on network {token.blockchain_network}")
 
         # Tweet verification
         tweet = db.query(Tweet).first()
