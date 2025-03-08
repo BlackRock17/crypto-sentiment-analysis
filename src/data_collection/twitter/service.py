@@ -5,7 +5,7 @@ Coordinates data collection, processing, and storage.
 
 import logging
 from typing import List, Dict, Any, Optional, Tuple, Set
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,7 @@ from src.data_processing.models.twitter import TwitterInfluencer, TwitterInfluen
 from src.data_processing.crud.twitter import (
     get_automated_influencers, create_influencer_tweet, get_influencer_by_username
 )
+from src.services.notification_service import NotificationService
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -276,9 +277,51 @@ class TwitterCollectionService:
 
             # Store token mentions
             mentions_count = 0
+            created_tokens = []
+
             if token_data:
                 mentions = self.repository.store_token_mentions(stored_tweet, token_data)
                 mentions_count = len(mentions)
+
+                # Collect newly created tokens for notifications
+                for token_info in token_data:
+                    symbol = token_info.get("symbol")
+                    network = token_info.get("blockchain_network")
+                    confidence = token_info.get("network_confidence", 0.0)
+
+                    token = self.repository._find_or_create_token(
+                        symbol=symbol,
+                        blockchain_network=network,
+                        network_confidence=confidence
+                    )
+
+                    if token and token not in created_tokens:
+                        created_tokens.append(token)
+
+            # Generate notifications for newly created or uncategorized tokens
+            notification_service = NotificationService(self.db)
+
+            for token in created_tokens:
+                # Check if token was newly created
+                if token.created_at >= datetime.utcnow() - timedelta(minutes=1):
+                    # New token detected
+                    notification_service.notify_new_token(
+                        token_id=token.id,
+                        confidence=token.network_confidence or 0.0
+                    )
+
+                # Check if token needs review
+                if token.needs_review:
+                    # Get mention count for better prioritization
+                    mention_count = self.db.query(TokenMention).filter(
+                        TokenMention.token_id == token.id
+                    ).count()
+
+                    # Token needs categorization
+                    notification_service.notify_uncategorized_token(
+                        token_id=token.id,
+                        mention_count=mention_count
+                    )
 
             return stored_tweet, mentions_count
 
