@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_, or_
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional, Any
+from scipy.stats import pearsonr
 from src.data_processing.models.database import BlockchainToken, Tweet, SentimentAnalysis, TokenMention, SentimentEnum, \
     BlockchainNetwork
 
@@ -2498,8 +2499,7 @@ def find_correlated_network_sentiments(
         db: Session,
         days_back: int = 30,
         interval: str = "day",
-        correlation_threshold: float = 0.5
-) -> Dict:
+        correlation_threshold: float = 0.5) -> Dict:
     """
     Find correlations between sentiment trends of different blockchain networks
 
@@ -2593,7 +2593,6 @@ def find_correlated_network_sentiments(
     network_correlations = []
 
     if len(valid_networks) >= 2:
-        from scipy.stats import pearsonr
 
         for i in range(len(valid_networks)):
             for j in range(i + 1, len(valid_networks)):

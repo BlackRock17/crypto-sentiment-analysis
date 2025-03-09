@@ -1,7 +1,7 @@
 """
 API schemas for Twitter-related API endpoints with blockchain network support.
 """
-from typing import Optional, List, Dict, Any, Literal
+from typing import Optional, List, Dict, Any, Literal, Union
 from datetime import datetime
 from pydantic import BaseModel, Field, constr, validator, field_validator
 
