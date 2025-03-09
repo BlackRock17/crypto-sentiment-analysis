@@ -1,8 +1,8 @@
 """initial_migration
 
-Revision ID: 341f980d2178
+Revision ID: 8eb2b097025c
 Revises: 
-Create Date: 2025-03-06 23:23:57.453042
+Create Date: 2025-03-09 14:43:32.172103
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '341f980d2178'
+revision: str = '8eb2b097025c'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -99,15 +99,29 @@ def upgrade() -> None:
     sa.Column('blockchain_network_id', sa.Integer(), nullable=True),
     sa.Column('network_confidence', sa.Float(), nullable=True),
     sa.Column('manually_verified', sa.Boolean(), nullable=True),
+    sa.Column('needs_review', sa.Boolean(), nullable=True),
+    sa.Column('is_archived', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('needs_review', sa.Boolean(), nullable=True),
     sa.Column('blockchain_network', sa.String(length=50), nullable=True),
     sa.ForeignKeyConstraint(['blockchain_network_id'], ['blockchain_networks.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_blockchain_tokens_address_network', 'blockchain_tokens', ['token_address', 'blockchain_network_id'], unique=True)
     op.create_index('ix_blockchain_tokens_symbol_network', 'blockchain_tokens', ['symbol', 'blockchain_network_id'], unique=False)
+    op.create_table('notifications',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('type', sa.String(length=50), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('message', sa.Text(), nullable=False),
+    sa.Column('priority', sa.String(length=20), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('is_read', sa.Boolean(), nullable=True),
+    sa.Column('additional_data', sa.JSON(), nullable=True),
+    sa.Column('user_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('password_resets',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -190,6 +204,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_password_resets_reset_code'), table_name='password_resets')
     op.drop_index(op.f('ix_password_resets_id'), table_name='password_resets')
     op.drop_table('password_resets')
+    op.drop_table('notifications')
     op.drop_index('ix_blockchain_tokens_symbol_network', table_name='blockchain_tokens')
     op.drop_index('ix_blockchain_tokens_address_network', table_name='blockchain_tokens')
     op.drop_table('blockchain_tokens')

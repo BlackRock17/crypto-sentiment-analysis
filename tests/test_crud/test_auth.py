@@ -11,6 +11,10 @@ from src.data_processing.models.auth import User, Token, ApiKey
 from src.data_processing.database import get_db
 from src.security.utils import get_password_hash, verify_password
 
+from src.data_processing.models.database import BlockchainToken, BlockchainNetwork
+
+from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
+from src.data_processing.models.notifications import Notification, NotificationType, NotificationPriority
 
 @pytest.fixture
 def db():

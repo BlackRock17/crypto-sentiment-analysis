@@ -1,4 +1,3 @@
-# tests/test_models.py
 """
 Tests for database models.
 """
@@ -11,9 +10,6 @@ from src.data_processing.models.database import (
     BlockchainToken, BlockchainNetwork, Tweet, SentimentAnalysis,
     TokenMention, SentimentEnum
 )
-# Import User and Notification models to ensure they are fully loaded
-from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
-from src.data_processing.models.notifications import Notification, NotificationType, NotificationPriority
 
 
 @pytest.fixture
