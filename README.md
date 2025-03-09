@@ -1,14 +1,14 @@
-# Solana Sentiment Analysis Project Documentation
+# Blockchain Sentiment Analysis Project Documentation
 
 ## Project Overview
-An advanced system for analyzing social media sentiment around Solana blockchain tokens. The project combines real-time data processing, machine learning, and comprehensive monitoring to provide valuable insights into cryptocurrency market sentiment.
+An advanced system for analyzing social media sentiment around cryptocurrency tokens across multiple blockchain networks (Ethereum, Solana, Binance Smart Chain, and others). The project combines real-time data processing, machine learning, and comprehensive monitoring to provide valuable insights into cryptocurrency market sentiment across different blockchain ecosystems.
 
 ## Project Goals
-1. Real-time collection and processing of Solana-related tweets
-2. Advanced sentiment analysis using custom ML models
-3. Predictive analytics for trend identification
-4. Scalable, production-ready infrastructure
-5. Comprehensive monitoring and alerting system
+1. Real-time collection and processing of crypto-related tweets across multiple blockchain networks
+2. Advanced sentiment analysis using custom ML models with blockchain network categorization
+3. Predictive analytics for trend identification and cross-network sentiment comparison
+4. Scalable, production-ready infrastructure supporting multi-network analysis
+5. Comprehensive monitoring and alerting system with network-specific insights
 
 ## Technology Stack
 ### Core Technologies
@@ -31,12 +31,12 @@ An advanced system for analyzing social media sentiment around Solana blockchain
 ## Development Environment
 - IDE: PyCharm
 - Version Control: Git
-- Repository: https://github.com/BlackRock17/solana-sentiment-analysis.git
+- Repository: https://github.com/BlackRock17/crypto-sentiment-analysis.git
 - Container Platform: Docker
 
 ## Project Structure
 ```
-solana_sentiment/
+crypto_sentiment/
 ├── alembic/
 │   ├── versions/
 │   │   ├── d2361f92dba1_initial_migration.py
@@ -149,8 +149,8 @@ solana_sentiment/
 
 ### Phase 2: Data Infrastructure and Streaming (Current Phase)
 1. Database Implementation (Completed) ✓
-   - Schema design ✓
-   - SQLAlchemy models ✓
+   - Schema design with multi-blockchain support ✓
+   - SQLAlchemy models with blockchain network integration ✓
    - Migrations setup ✓
    - Basic test implementation ✓
    - CRUD Operations (Completed) ✓
@@ -159,8 +159,8 @@ solana_sentiment/
      * Update operations with validation ✓
      * Delete operations with cascading ✓
    - Core Queries (Completed) ✓
-     * Sentiment analysis queries ✓
-     * Token analysis queries ✓
+     * Multi-network sentiment analysis queries ✓
+     * Cross-network token analysis queries ✓
      * Complex queries with joins ✓
 2. Basic Security Implementation (Completed) ✓
    - OAuth2 authentication setup ✓
@@ -186,8 +186,8 @@ solana_sentiment/
 3. Twitter API Integration (Completed) ✓
    - API client implementation ✓
    - Crypto influencer tracking implementation ✓
-   - Token mention extraction ✓
-   - Data storage in database ✓
+   - Token mention extraction with blockchain network identification ✓
+   - Data storage in database with network classification ✓
    - Error handling & retry logic ✓
    - Testing framework for Twitter components ✓
    - Influencer management model and CRUD operations ✓
@@ -195,7 +195,13 @@ solana_sentiment/
    - Manual tweet addition functionality ✓
    - Configurable collection frequency ✓
    - Admin API endpoints for Twitter operations ✓
-4. Kafka Integration (Next Step)
+4. Blockchain Network Management System (In Progress)
+   - Token categorization workflow implementation
+   - Network detection algorithms
+   - Manual review interface for uncategorized tokens
+   - Token deduplication and merging functionality
+   - Network confidence scoring system
+5. Kafka Integration (Next Step)
    - Kafka cluster setup
    - Producer/Consumer implementation
    - Stream processing pipeline
@@ -210,9 +216,13 @@ solana_sentiment/
    - Data cleaning
    - Feature engineering
 3. ML Component Implementation
-   - Custom sentiment model training
+   - Custom sentiment model training with network awareness
    - BERT/Transformer integration
    - Model deployment pipeline
+4. Cross-Network Analysis
+   - Comparative sentiment analysis across networks
+   - Token correlation across different blockchains
+   - Network-specific sentiment triggers
 
 ### Phase 4: Monitoring, Logging, and Documentation
 1. ELK Stack Implementation
@@ -250,23 +260,23 @@ solana_sentiment/
 ### Phase 6: Analytics and Visualization
 1. Real-time Dashboard
    - WebSocket integration
-   - Interactive visualizations
+   - Interactive visualizations with network filtering
    - Live updates
 2. Predictive Analytics
-   - Time series analysis
+   - Cross-network time series analysis
    - Trend prediction
    - Market correlation analysis
 3. Advanced Feature Implementation
-   - Custom analytics
-   - API endpoints
-   - User interface improvements
+   - Custom analytics with network comparison
+   - Network-specific API endpoints
+   - User interface improvements with multi-network support
 
 ## Current Progress
 - Completed Phase 1 ✓
 - Project structure created and expanded ✓
 - Basic configuration set up ✓
 - GitHub repository initialized ✓
-- Database models created and implemented ✓
+- Database models created and implemented with multi-blockchain support ✓
 - Database migrations successfully applied ✓
 - Basic database testing completed ✓
 - Test data successfully loaded ✓
@@ -277,8 +287,8 @@ solana_sentiment/
   * Delete operations with cascading implemented ✓
   * Unit tests for Create, Read, Update, and Delete operations implemented and passing ✓
 - Core Queries:
-  * Sentiment analysis queries implemented ✓
-  * Token analysis queries implemented ✓
+  * Multi-network sentiment analysis queries implemented ✓
+  * Cross-network token analysis queries implemented ✓
   * Complex queries with joins implemented ✓
   * Unit tests for Core Queries implemented and passing ✓
 - Project structure improved with modular organization ✓
@@ -299,8 +309,8 @@ solana_sentiment/
 - Twitter API Integration:
   * Twitter API client implementation completed ✓
   * Functionality for tracking crypto influencers implemented ✓
-  * Extraction of token mentions from tweets implemented ✓
-  * Storage of tweets and token mentions in database ✓
+  * Extraction of token mentions with network identification implemented ✓
+  * Storage of tweets and token mentions with network classification in database ✓
   * Error handling with retry logic implemented ✓
   * API usage tracking and limitation implemented ✓
   * Manual tweet addition functionality implemented ✓
@@ -308,27 +318,38 @@ solana_sentiment/
   * Configurable collection frequency implemented ✓
   * Admin API endpoints for Twitter operations implemented ✓
   * Comprehensive unit tests for Twitter functionality ✓
+- Blockchain Network Management:
+  * Network and token models implemented ✓
+  * Token categorization logic implemented ✓
+  * Network detection algorithms created ✓
+  * Admin interfaces for token review implemented ✓
 
 ## Next Steps
-1. Kafka Integration
+1. Complete Blockchain Network Management System
+   - Finalize token categorization workflow
+   - Enhance network detection algorithms
+   - Implement token merging and deduplication interfaces
+   - Add scheduled tasks for token maintenance
+
+2. Kafka Integration
    - Set up Kafka cluster for streaming data
    - Implement producers and consumers for tweet data
    - Create stream processing pipeline for real-time analysis
    - Add monitoring for Kafka components
    - Implement fault tolerance and error handling
 
-2. Machine Learning Pipeline Setup
+3. Machine Learning Pipeline Setup
    - Set up Apache Airflow for orchestrating ML tasks
-   - Develop custom sentiment analysis model for crypto tweets
+   - Develop custom sentiment analysis model with network awareness
    - Implement data preprocessing pipeline for tweets
    - Create training and evaluation workflow
    - Deploy model for real-time inference
 
-3. Monitoring and Visualization
+4. Monitoring and Visualization
    - Implement ELK stack for centralized logging
    - Set up Prometheus for metrics collection
    - Create Grafana dashboards for system monitoring
-   - Develop real-time analytics dashboard for sentiment trends
+   - Develop real-time analytics dashboard for cross-network sentiment trends
 
 ## Advanced Features Details
 
@@ -339,6 +360,13 @@ solana_sentiment/
 - Retry mechanisms
 - Quality assurance checks
 
+### Network Categorization System
+- Network detection algorithms
+- Token classification models
+- Confidence scoring system
+- Token deduplication mechanisms
+- Review and approval workflows
+
 ### Monitoring System
 - Centralized logging with ELK Stack
 - Performance metrics with Prometheus
@@ -347,16 +375,16 @@ solana_sentiment/
 - Resource utilization tracking
 
 ### ML Component
-- Custom BERT model for crypto sentiment
-- Feature engineering pipeline
+- Custom BERT model for crypto sentiment across networks
+- Network-specific feature engineering pipeline
 - Model retraining workflow
 - Prediction accuracy monitoring
 - Model version control
 
 ### Real-time Processing
 - Kafka streaming pipeline
-- Real-time analytics
-- Live dashboard updates
+- Real-time cross-network analytics
+- Live dashboard updates with network filtering
 - Instant alerts
 - Stream processing with Spark
 
@@ -370,14 +398,15 @@ solana_sentiment/
 
 ## Success Metrics
 1. System performance
-2. Prediction accuracy
+2. Prediction accuracy across different networks
 3. Data processing latency
 4. System uptime
 5. Error rates
 6. User engagement
+7. Network categorization accuracy
 
 ## Notes
-- Emphasis on scalability and reliability
-- Focus on real-time processing capabilities
+- Emphasis on accurate network identification and categorization
+- Focus on cross-network comparison and analysis
 - Regular security and performance reviews
 - Continuous improvement cycle
