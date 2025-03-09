@@ -36,7 +36,7 @@ class Notification(Base):
     priority = Column(String(20), default="medium")  # Priority level
     created_at = Column(DateTime, default=datetime.utcnow)
     is_read = Column(Boolean, default=False)  # Whether the notification has been read
-    metadata = Column(JSON, default={})  # Additional metadata (e.g., token_id, symbol)
+    additional_data = Column(JSON, default={})  # Additional metadata (e.g., token_id, symbol)
 
     # Optional link to a user if notification is user-specific
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
