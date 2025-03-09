@@ -1495,3 +1495,16 @@ async def batch_categorize_tokens(
                 "message": str(e)
             })
             results["errors"] += 1
+
+    return {
+        "success": True,
+        "timestamp": datetime.utcnow(),
+        "stats": {
+            "total": results["total"],
+            "processed": results["processed"],
+            "auto_categorized": results["auto_categorized"],
+            "manual_review": results["manual_review"],
+            "errors": results["errors"]
+        },
+        "tokens": results["tokens"]
+    }
