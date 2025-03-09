@@ -2823,3 +2823,183 @@ def analyze_sentiment_seasonality(
             "hour": low_hour
         }
     }
+
+
+def analyze_token_for_network_detection(
+        db: Session,
+        token_id: int,
+        min_confidence: float = 0.5
+) -> Dict[str, Any]:
+    """
+    Advanced analysis of a token to detect its most likely blockchain network.
+    Uses context from tweets, common patterns, and historical data.
+
+    Args:
+        db: Database session
+        token_id: ID of the token to analyze
+        min_confidence: Minimum confidence threshold to suggest a network
+
+    Returns:
+        Dictionary with detected networks and confidence scores:
+        {
+            "token_id": int,
+            "token_symbol": str,
+            "detected_networks": [
+                {"network": str, "confidence": float, "evidence": list}
+            ],
+            "recommended_network": {"id": int, "name": str},
+            "confidence_score": float,
+            "needs_manual_review": bool
+        }
+    """
+    # Get token details
+    token = get_blockchain_token_by_id(db, token_id)
+    if not token:
+        raise ValueError(f"Token with ID {token_id} not found")
+
+    # Get mentions of this token
+    mentions = db.query(TokenMention).filter(TokenMention.token_id == token_id).all()
+    if not mentions:
+        return {
+            "token_id": token.id,
+            "token_symbol": token.symbol,
+            "detected_networks": [],
+            "recommended_network": None,
+            "confidence_score": 0.0,
+            "needs_manual_review": True,
+            "reason": "No mentions found for analysis"
+        }
+
+    # Get tweet IDs
+    tweet_ids = [mention.tweet_id for mention in mentions]
+
+    # Get tweets
+    tweets = db.query(Tweet).filter(Tweet.id.in_(tweet_ids)).all()
+
+    # Get all blockchain networks
+    networks = db.query(BlockchainNetwork).filter(BlockchainNetwork.is_active == True).all()
+
+    # Initialize network scores
+    network_scores = {}
+    evidence = {}
+
+    for network in networks:
+        network_scores[network.name] = 0.0
+        evidence[network.name] = []
+
+    # Analyze tweets for network indicators
+    for tweet in tweets:
+        tweet_text = tweet.text.lower()
+
+        # Check tweet text for network mentions
+        for network in networks:
+            # Direct network name mention
+            if network.name.lower() in tweet_text:
+                network_scores[network.name] += 0.3
+                evidence[network.name].append({
+                    "tweet_id": tweet.id,
+                    "type": "direct_mention",
+                    "text": tweet.text,
+                    "weight": 0.3
+                })
+
+            # Check for display name mention
+            if network.display_name and network.display_name.lower() in tweet_text:
+                network_scores[network.name] += 0.3
+                evidence[network.name].append({
+                    "tweet_id": tweet.id,
+                    "type": "display_name_mention",
+                    "text": tweet.text,
+                    "weight": 0.3
+                })
+
+            # Check for hashtags
+            if network.hashtags:
+                for hashtag in network.hashtags:
+                    if f"#{hashtag.lower()}" in tweet_text:
+                        network_scores[network.name] += 0.4
+                        evidence[network.name].append({
+                            "tweet_id": tweet.id,
+                            "type": "hashtag",
+                            "text": f"#{hashtag}",
+                            "weight": 0.4
+                        })
+
+            # Check for keywords
+            if network.keywords:
+                for keyword in network.keywords:
+                    if keyword.lower() in tweet_text:
+                        network_scores[network.name] += 0.2
+                        evidence[network.name].append({
+                            "tweet_id": tweet.id,
+                            "type": "keyword",
+                            "text": keyword,
+                            "weight": 0.2
+                        })
+
+    # Analyze token symbol for network-specific patterns
+    token_symbol = token.symbol.lower()
+    token_address = token.token_address.lower()
+
+    # Common Ethereum token patterns
+    if token_address.startswith("0x") or "erc" in token_symbol:
+        network_scores["ethereum"] = network_scores.get("ethereum", 0) + 0.4
+        evidence["ethereum"].append({
+            "type": "address_pattern",
+            "text": f"Address starts with 0x: {token_address}",
+            "weight": 0.4
+        })
+
+    # Common Solana token patterns
+    if len(token_symbol) <= 5 and token_symbol.isupper():
+        network_scores["solana"] = network_scores.get("solana", 0) + 0.2
+        evidence["solana"].append({
+            "type": "symbol_pattern",
+            "text": f"Short uppercase symbol: {token.symbol}",
+            "weight": 0.2
+        })
+
+    # Normalize scores based on evidence count
+    for network_name in network_scores:
+        if len(evidence[network_name]) > 0:
+            # Average evidence weight
+            avg_weight = sum(e["weight"] for e in evidence[network_name]) / len(evidence[network_name])
+            # Apply diminishing returns for large numbers of evidence
+            evidence_factor = min(1.0, math.log10(len(evidence[network_name]) + 1) / math.log10(11))
+            # Calculate final score
+            network_scores[network_name] = min(1.0, avg_weight * evidence_factor)
+
+    # Find the highest scoring network
+    best_network = None
+    highest_score = 0.0
+
+    for network_name, score in network_scores.items():
+        if score > highest_score:
+            highest_score = score
+            # Get network ID for the recommendation
+            network = next((n for n in networks if n.name == network_name), None)
+            if network:
+                best_network = {"id": network.id, "name": network_name}
+
+    # Determine if manual review is needed
+    needs_manual_review = highest_score < min_confidence
+
+    # Return results
+    detected_networks = [
+        {"network": network_name, "confidence": score, "evidence": evidence[network_name]}
+        for network_name, score in network_scores.items()
+        if score > 0
+    ]
+
+    # Sort detected networks by confidence score (descending)
+    detected_networks.sort(key=lambda x: x["confidence"], reverse=True)
+
+    return {
+        "token_id": token.id,
+        "token_symbol": token.symbol,
+        "detected_networks": detected_networks,
+        "recommended_network": best_network,
+        "confidence_score": highest_score,
+        "needs_manual_review": needs_manual_review,
+        "reason": "Low confidence score" if needs_manual_review and best_network else "No clear network detected"
+    }
