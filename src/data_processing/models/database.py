@@ -71,6 +71,8 @@ class BlockchainToken(Base):
     # Relationships
     mentions = relationship("TokenMention", back_populates="token", cascade="all, delete-orphan")
     network = relationship("BlockchainNetwork", back_populates="tokens")
+    categorization_history = relationship("TokenCategorizationHistory", back_populates="token",
+                                                          cascade="all, delete-orphan")
 
 
 class TokenMention(Base):
@@ -111,3 +113,24 @@ class BlockchainNetwork(Base):
 
     def __repr__(self):
         return f"<BlockchainNetwork(name='{self.name}', display_name='{self.display_name}')>"
+
+
+class TokenCategorizationHistory(Base):
+    __tablename__ = "token_categorization_history"
+
+    id = Column(Integer, primary_key=True)
+    token_id = Column(Integer, ForeignKey("blockchain_tokens.id", ondelete="CASCADE"), nullable=False)
+    previous_network_id = Column(Integer, ForeignKey("blockchain_networks.id"), nullable=True)
+    new_network_id = Column(Integer, ForeignKey("blockchain_networks.id"), nullable=True)
+    previous_confidence = Column(Float, nullable=True)
+    new_confidence = Column(Float, nullable=False)
+    categorized_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Null if automatic
+    is_auto_categorized = Column(Boolean, default=False)
+    notes = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relations
+    token = relationship("BlockchainToken", back_populates="categorization_history")
+    previous_network = relationship("BlockchainNetwork", foreign_keys=[previous_network_id])
+    new_network = relationship("BlockchainNetwork", foreign_keys=[new_network_id])
+    user = relationship("User")
