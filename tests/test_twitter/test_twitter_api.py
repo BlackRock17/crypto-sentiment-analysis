@@ -289,7 +289,10 @@ def test_add_manual_tweet(auth_headers, test_influencer, db: Session):
         "influencer_username": test_influencer.username,
         "text": "This is a manual test tweet about $SOL and $RAY #solana",
         "retweet_count": 5,
-        "like_count": 10
+        "like_count": 10,
+        # Add missing fields that might be required in the endpoint
+        "created_at": datetime.utcnow().isoformat(),
+        "tweet_id": f"manual_{int(datetime.utcnow().timestamp())}"
     }
 
     response = client.post(
