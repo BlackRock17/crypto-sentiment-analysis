@@ -74,91 +74,139 @@ async def check_for_duplicate_tokens():
         db.close()
 
 
-async def auto_merge_exact_duplicates():
+async def auto_merge_exact_duplicates(dry_run: bool = False) -> Dict[str, Any]:
     """
-    Scheduled task to automatically merge tokens with identical symbols and blockchain networks.
+    Automatically merge exact duplicate tokens (same symbol and network).
+    Only merges tokens that are exact duplicates without manual verification required.
+
+    Args:
+        dry_run: If True, only simulate merges without actually performing them
+
+    Returns:
+        Dictionary with merge statistics
     """
     db = next(get_db())
     try:
         logger.info("Starting scheduled task: Auto-merging exact duplicate tokens")
 
         # Find tokens with same symbol and blockchain network
-        # First, find symbols that appear multiple times
-        duplicate_symbols = db.query(
+        # First, find symbols that appear multiple times in the same network
+        duplicate_query = db.query(
             BlockchainToken.symbol,
             BlockchainToken.blockchain_network,
             func.count(BlockchainToken.id).label("count")
+        ).filter(
+            BlockchainToken.blockchain_network != None  # Only consider tokens with assigned networks
         ).group_by(
             BlockchainToken.symbol,
             BlockchainToken.blockchain_network
         ).having(
             func.count(BlockchainToken.id) > 1
-        ).all()
+        )
 
-        merged_count = 0
+        # Execute query to get duplicates
+        potential_duplicates = duplicate_query.all()
 
-        # For each potential duplicate set
-        for symbol, network, count in duplicate_symbols:
-            if not network:
-                # Skip tokens without a blockchain network
-                continue
+        if not potential_duplicates:
+            logger.info("No exact duplicate tokens found")
+            return {"groups_processed": 0, "tokens_merged": 0}
 
-            # Get all tokens with this symbol and network
-            tokens = db.query(BlockchainToken).filter(
-                BlockchainToken.symbol == symbol,
-                BlockchainToken.blockchain_network == network
-            ).all()
+        logger.info(f"Found {len(potential_duplicates)} potential duplicate groups")
 
-            if len(tokens) <= 1:
-                continue
+        groups_processed = 0
+        tokens_merged = 0
 
-            # Find the primary token (manually verified or most mentions)
-            primary_token = None
-            for token in tokens:
-                if token.manually_verified:
-                    primary_token = token
-                    break
+        for symbol, network, count in potential_duplicates:
+            try:
+                # Get all tokens with this symbol and network
+                tokens = db.query(BlockchainToken).filter(
+                    BlockchainToken.symbol == symbol,
+                    BlockchainToken.blockchain_network == network
+                ).all()
 
-            # If no manually verified token, use the one with most mentions
-            if not primary_token:
-                # For each token, count mentions
-                token_mentions = {}
-                for token in tokens:
-                    mention_count = db.query(func.count(TokenMention.id)).filter(
-                        TokenMention.token_id == token.id
-                    ).scalar()
-                    token_mentions[token.id] = mention_count
+                # Skip if there's only one token (shouldn't happen due to the HAVING clause above)
+                if len(tokens) <= 1:
+                    continue
 
-                # Use token with most mentions as primary
-                if token_mentions:
-                    primary_id = max(token_mentions.items(), key=lambda x: x[1])[0]
+                # Sort tokens to determine primary:
+                # 1. Manually verified tokens first
+                # 2. Tokens with highest confidence
+                # 3. Tokens with most mentions
+                # 4. Oldest tokens
+
+                # First check for manually verified tokens
+                verified_tokens = [t for t in tokens if t.manually_verified]
+                primary_token = None
+
+                if verified_tokens:
+                    # Use the manually verified token with highest confidence
+                    primary_token = max(verified_tokens, key=lambda t: (t.network_confidence or 0))
+                else:
+                    # Calculate mention counts for each token
+                    mention_counts = {}
                     for token in tokens:
-                        if token.id == primary_id:
-                            primary_token = token
-                            break
+                        count = db.query(func.count(TokenMention.id)).filter(
+                            TokenMention.token_id == token.id
+                        ).scalar()
+                        mention_counts[token.id] = count
 
-            # If we found a primary token, merge others into it
-            if primary_token:
-                for token in tokens:
-                    if token.id != primary_token.id:
-                        try:
-                            success = merge_duplicate_tokens(
-                                db=db,
-                                primary_token_id=primary_token.id,
-                                duplicate_token_id=token.id
-                            )
-                            if success:
-                                merged_count += 1
-                                logger.info(
-                                    f"Merged duplicate token {token.symbol} (ID: {token.id}) into {primary_token.id}")
-                        except Exception as e:
-                            logger.error(f"Error merging token {token.id} into {primary_token.id}: {e}")
+                    # Sort by confidence, then mentions, then age (oldest first)
+                    token_scores = [(
+                        t,
+                        t.network_confidence or 0,
+                        mention_counts.get(t.id, 0),
+                        -t.created_at.timestamp()  # Negative so oldest is highest
+                    ) for t in tokens]
 
-        logger.info(f"Auto-merged {merged_count} duplicate tokens")
-        logger.info("Completed scheduled task: Auto-merging exact duplicate tokens")
+                    # Get token with highest score
+                    primary_token = max(token_scores, key=lambda x: (x[1], x[2], x[3]))[0]
+
+                # Get tokens to merge (all except primary)
+                tokens_to_merge = [t for t in tokens if t.id != primary_token.id]
+
+                if not tokens_to_merge:
+                    continue
+
+                # Log the planned merge
+                logger.info(
+                    f"{'Would merge' if dry_run else 'Merging'} {len(tokens_to_merge)} duplicates of {symbol} "
+                    f"({network}) into primary token ID {primary_token.id}"
+                )
+
+                if not dry_run:
+                    # Perform the merges
+                    for token in tokens_to_merge:
+                        success = merge_duplicate_tokens(
+                            db=db,
+                            primary_token_id=primary_token.id,
+                            duplicate_token_id=token.id
+                        )
+
+                        if success:
+                            tokens_merged += 1
+                        else:
+                            logger.warning(f"Failed to merge token ID {token.id} into {primary_token.id}")
+                else:
+                    # In dry run, just count what would be merged
+                    tokens_merged += len(tokens_to_merge)
+
+                groups_processed += 1
+
+            except Exception as e:
+                logger.error(f"Error processing duplicate group {symbol}/{network}: {e}")
+
+        action_verb = "Would have merged" if dry_run else "Merged"
+        logger.info(f"Auto-merge complete: {groups_processed} groups processed, {action_verb} {tokens_merged} tokens")
+
+        return {
+            "dry_run": dry_run,
+            "groups_processed": groups_processed,
+            "tokens_merged": tokens_merged
+        }
 
     except Exception as e:
-        logger.error(f"Error in scheduled task to auto-merge duplicate tokens: {e}")
+        logger.error(f"Error in auto_merge_exact_duplicates task: {e}")
+        return {"error": str(e), "groups_processed": 0, "tokens_merged": 0}
     finally:
         db.close()
 
