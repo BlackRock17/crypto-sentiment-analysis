@@ -3,25 +3,31 @@ import uuid
 from datetime import datetime, timedelta
 from src.data_processing.database import get_db
 from src.data_processing.crud.create import (
-    create_solana_token,
+    create_blockchain_token,
     create_tweet,
     create_sentiment_analysis,
     create_token_mention
 )
 from src.data_processing.crud.read import (
-    get_solana_token_by_id,
+    get_blockchain_token_by_id,
     get_tweet_by_id,
     get_sentiment_analysis_by_id,
     get_token_mention_by_id
 )
 from src.data_processing.crud.update import (
-    update_solana_token,
+    update_blockchain_token,
     update_tweet,
     update_sentiment_analysis,
     update_token_mention,
-    update_tweet_by_twitter_id
+    update_tweet_by_twitter_id,
+    update_token_blockchain_network,
+    mark_token_as_verified,
+    update_blockchain_network
 )
-from src.data_processing.models.database import SentimentEnum
+from src.data_processing.models.database import SentimentEnum, BlockchainNetwork, BlockchainToken
+# Ensure all models are properly imported to avoid mapper errors
+from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
+from src.data_processing.models.notifications import Notification, NotificationType, NotificationPriority
 
 
 @pytest.fixture
@@ -33,7 +39,7 @@ def db():
 
 
 def generate_unique_address():
-    """Generate unique Solana address"""
+    """Generate unique blockchain address"""
     return f"So{uuid.uuid4().hex[:40]}2"
 
 
@@ -42,34 +48,166 @@ def generate_unique_tweet_id():
     return str(uuid.uuid4().int)[:15]
 
 
-def test_update_solana_token(db):
-    """Test updating a Solana token"""
+@pytest.fixture
+def test_network(db):
+    """Create a test blockchain network"""
+    network = BlockchainNetwork(
+        name="testnet",
+        display_name="Test Network",
+        description="Network for testing",
+        hashtags=["test", "testnet"],
+        keywords=["test", "blockchain", "network"]
+    )
+    db.add(network)
+    db.commit()
+    db.refresh(network)
+
+    yield network
+
+    # Cleanup
+    db.delete(network)
+    db.commit()
+
+
+def test_update_blockchain_network(db, test_network):
+    """Test updating a blockchain network"""
+    # Update the network
+    updated_network = update_blockchain_network(
+        db=db,
+        network_id=test_network.id,
+        display_name="Updated Test Network",
+        description="Updated description",
+        hashtags=["updated", "test"],
+        keywords=["updated", "testnet", "network"]
+    )
+
+    # Verify the update
+    assert updated_network is not None
+    assert updated_network.display_name == "Updated Test Network"
+    assert updated_network.description == "Updated description"
+    assert "updated" in updated_network.hashtags
+    assert "updated" in updated_network.keywords
+
+    print("✓ Successfully updated and verified blockchain network")
+
+
+def test_update_blockchain_token(db, test_network):
+    """Test updating a blockchain token"""
     # Create a token to update
-    token = create_solana_token(
+    token = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="TEST",
-        name="Test Token"
+        name="Test Token",
+        blockchain_network="testnet",
+        blockchain_network_id=test_network.id,
+        network_confidence=0.5
     )
 
     # Update the token
-    updated_token = update_solana_token(
+    updated_token = update_blockchain_token(
         db=db,
         token_id=token.id,
         symbol="UPDATED",
-        name="Updated Token"
+        name="Updated Token",
+        network_confidence=0.8,
+        manually_verified=True
     )
 
     # Verify the update
     assert updated_token is not None
     assert updated_token.symbol == "UPDATED"
     assert updated_token.name == "Updated Token"
+    assert updated_token.network_confidence == 0.8
+    assert updated_token.manually_verified == True
+    assert updated_token.blockchain_network == "testnet"  # Should remain unchanged
+    assert updated_token.blockchain_network_id == test_network.id  # Should remain unchanged
 
     # Clean up
     db.delete(token)
     db.commit()
 
-    print("✓ Successfully updated and verified Solana token")
+    print("✓ Successfully updated and verified blockchain token")
+
+
+def test_update_token_blockchain_network(db):
+    """Test updating a token's blockchain network"""
+    # Create two networks
+    network1 = BlockchainNetwork(name="network1", display_name="Network 1")
+    network2 = BlockchainNetwork(name="network2", display_name="Network 2")
+    db.add(network1)
+    db.add(network2)
+    db.commit()
+
+    # Create a token with network1
+    token = create_blockchain_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="TOKEN",
+        name="Token",
+        blockchain_network="network1",
+        blockchain_network_id=network1.id,
+        network_confidence=0.5
+    )
+
+    # Update token to network2
+    updated_token = update_token_blockchain_network(
+        db=db,
+        token_id=token.id,
+        blockchain_network_id=network2.id,
+        confidence=0.9,
+        manually_verified=True
+    )
+
+    # Verify the update
+    assert updated_token is not None
+    assert updated_token.blockchain_network_id == network2.id
+    assert updated_token.blockchain_network == "network2"
+    assert updated_token.network_confidence == 0.9
+    assert updated_token.manually_verified == True
+
+    # Clean up
+    db.delete(token)
+    db.delete(network1)
+    db.delete(network2)
+    db.commit()
+
+    print("✓ Successfully updated token blockchain network")
+
+
+def test_mark_token_as_verified(db, test_network):
+    """Test marking a token as verified"""
+    # Create a token that needs review
+    token = create_blockchain_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="REVIEW",
+        name="Review Token",
+        blockchain_network="testnet",
+        blockchain_network_id=test_network.id,
+        network_confidence=0.6,
+        manually_verified=False,
+        needs_review=True
+    )
+
+    # Mark token as verified
+    verified_token = mark_token_as_verified(
+        db=db,
+        token_id=token.id,
+        verified=True,
+        needs_review=False
+    )
+
+    # Verify the update
+    assert verified_token is not None
+    assert verified_token.manually_verified == True
+    assert verified_token.needs_review == False
+
+    # Clean up
+    db.delete(token)
+    db.commit()
+
+    print("✓ Successfully marked token as verified")
 
 
 def test_update_tweet(db):
@@ -159,19 +297,30 @@ def test_update_sentiment_analysis(db):
 
 def test_update_token_mention(db):
     """Test updating token mention"""
+    # Create networks
+    network1 = BlockchainNetwork(name="network1", display_name="Network 1")
+    network2 = BlockchainNetwork(name="network2", display_name="Network 2")
+    db.add(network1)
+    db.add(network2)
+    db.commit()
+
     # Create tokens
-    token1 = create_solana_token(
+    token1 = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="TKN1",
-        name="Token One"
+        name="Token One",
+        blockchain_network="network1",
+        blockchain_network_id=network1.id
     )
 
-    token2 = create_solana_token(
+    token2 = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="TKN2",
-        name="Token Two"
+        name="Token Two",
+        blockchain_network="network2",
+        blockchain_network_id=network2.id
     )
 
     # Create tweet
@@ -214,6 +363,8 @@ def test_update_token_mention(db):
     db.delete(tweet)
     db.delete(token1)
     db.delete(token2)
+    db.delete(network1)
+    db.delete(network2)
     db.commit()
 
     print("✓ Successfully updated and verified Token Mention")
@@ -256,7 +407,7 @@ def test_update_tweet_by_twitter_id(db):
 def test_update_nonexistent_records(db):
     """Test updating records that don't exist"""
     # Try to update non-existent token
-    updated_token = update_solana_token(db, 99999, symbol="NONEXISTENT")
+    updated_token = update_blockchain_token(db, 99999, symbol="NONEXISTENT")
     assert updated_token is None
 
     # Try to update non-existent tweet
@@ -274,6 +425,10 @@ def test_update_nonexistent_records(db):
     # Try to update non-existent tweet by Twitter ID
     updated_tweet_by_id = update_tweet_by_twitter_id(db, "nonexistent_id", like_count=10)
     assert updated_tweet_by_id is None
+
+    # Try to update non-existent blockchain network
+    updated_network = update_blockchain_network(db, 99999, display_name="Non-existent Network")
+    assert updated_network is None
 
     print("✓ Successfully handled updates to non-existent records")
 
@@ -313,12 +468,18 @@ def test_update_validation(db):
         # This is expected
         pass
 
-    # Create tokens
-    token = create_solana_token(
+    # Create network and token
+    network = BlockchainNetwork(name="validation_network", display_name="Validation Network")
+    db.add(network)
+    db.commit()
+
+    token = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="VAL",
-        name="Validation Token"
+        name="Validation Token",
+        blockchain_network="validation_network",
+        blockchain_network_id=network.id
     )
 
     # Create mention
@@ -348,6 +509,7 @@ def test_update_validation(db):
     db.delete(sentiment)
     db.delete(tweet)
     db.delete(token)
+    db.delete(network)
     db.commit()
 
     print("✓ Successfully validated update constraints")
