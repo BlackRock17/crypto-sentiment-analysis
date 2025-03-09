@@ -81,7 +81,9 @@ def update_token_blockchain_network(
         blockchain_network_id: int,
         confidence: float = 1.0,
         manually_verified: bool = True,
-        needs_review: bool = False
+        needs_review: bool = False,
+        user_id: Optional[int] = None,
+        notes: Optional[str] = None
 ) -> BlockchainToken:
     """
     Specialized function for updating the blockchain network of a token
@@ -93,6 +95,8 @@ def update_token_blockchain_network(
         confidence: Confidence level in the determination (default 1.0 for manually entered)
         manually_verified: Whether this is manually verified (default True)
         needs_review: Whether it needs subsequent review (default False)
+        user_id: ID of the user making the change (optional)
+        notes: Optional notes about the categorization
 
     Returns:
         Updated BlockchainToken record or None if not found
@@ -105,7 +109,11 @@ def update_token_blockchain_network(
     # Getting network information
     network = db.query(BlockchainNetwork).filter(BlockchainNetwork.id == blockchain_network_id).first()
     if not network:
-        raise ValueError(f"Блокчейн мрежа с ID {blockchain_network_id} не съществува")
+        raise ValueError(f"Blockchain network with ID {blockchain_network_id} does not exist")
+
+    # Record previous values for history
+    previous_network_id = db_token.blockchain_network_id
+    previous_confidence = db_token.network_confidence
 
     # Token renewal
     db_token.blockchain_network_id = blockchain_network_id
@@ -114,6 +122,26 @@ def update_token_blockchain_network(
     db_token.manually_verified = manually_verified
     db_token.needs_review = needs_review
     db_token.updated_at = datetime.utcnow()
+
+    # Create categorization history record
+    try:
+        from src.data_processing.crud.token_categorization import create_categorization_record
+
+        create_categorization_record(
+            db=db,
+            token_id=token_id,
+            new_network_id=blockchain_network_id,
+            new_confidence=confidence,
+            user_id=user_id,
+            is_auto_categorized=not manually_verified,
+            notes=notes
+        )
+    except ImportError:
+        # If the function isn't available, just log it
+        logger.warning("Token categorization history tracking not available")
+    except Exception as e:
+        # Don't fail the whole operation if history recording fails
+        logger.error(f"Error recording token categorization history: {e}")
 
     db.commit()
     db.refresh(db_token)

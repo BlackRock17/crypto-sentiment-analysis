@@ -1508,3 +1508,103 @@ async def batch_categorize_tokens(
         },
         "tokens": results["tokens"]
     }
+
+
+@router.get("/tokens/{token_id}/categorization-history", response_model=List[Dict[str, Any]])
+async def get_token_categorization_history_endpoint(
+        token_id: int = Path(..., gt=0),
+        limit: int = Query(10, ge=1, le=100),
+        current_user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Get categorization history for a token.
+
+    Args:
+        token_id: Token ID
+        limit: Maximum number of records to return
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        List of categorization history records
+    """
+    # Check if token exists
+    token = get_blockchain_token_by_id(db, token_id)
+    if not token:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    # Get categorization history
+    from src.data_processing.crud.token_categorization import get_token_categorization_history
+
+    history = get_token_categorization_history(db, token_id, limit)
+
+    # Format results for API response
+    results = []
+    for record in history:
+        # Get previous network name
+        previous_network_name = None
+        if record.previous_network_id:
+            previous_network = db.query(BlockchainNetwork).filter(
+                BlockchainNetwork.id == record.previous_network_id
+            ).first()
+            if previous_network:
+                previous_network_name = previous_network.name
+
+        # Get new network name
+        new_network_name = None
+        if record.new_network_id:
+            new_network = db.query(BlockchainNetwork).filter(
+                BlockchainNetwork.id == record.new_network_id
+            ).first()
+            if new_network:
+                new_network_name = new_network.name
+
+        # Get user info if available
+        username = None
+        if record.categorized_by_user_id:
+            user = db.query(User).filter(User.id == record.categorized_by_user_id).first()
+            if user:
+                username = user.username
+
+        results.append({
+            "id": record.id,
+            "token_id": record.token_id,
+            "token_symbol": token.symbol,
+            "previous_network_id": record.previous_network_id,
+            "previous_network_name": previous_network_name,
+            "new_network_id": record.new_network_id,
+            "new_network_name": new_network_name,
+            "previous_confidence": record.previous_confidence,
+            "new_confidence": record.new_confidence,
+            "categorized_by_user_id": record.categorized_by_user_id,
+            "categorized_by_username": username,
+            "is_auto_categorized": record.is_auto_categorized,
+            "notes": record.notes,
+            "created_at": record.created_at
+        })
+
+    return results
+
+
+@router.get("/tokens/categorization-stats", response_model=Dict[str, Any])
+async def get_token_categorization_stats(
+        days_back: int = Query(30, ge=1, le=365),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Get statistics about token categorizations.
+
+    Args:
+        days_back: Number of days to look back
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Categorization statistics
+    """
+    from src.data_processing.crud.token_categorization import get_categorization_stats
+
+    stats = get_categorization_stats(db, days_back)
+    return stats
