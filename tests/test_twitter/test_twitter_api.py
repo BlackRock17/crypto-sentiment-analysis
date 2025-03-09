@@ -10,6 +10,7 @@ from src.main import app
 from src.data_processing.database import get_db
 from src.data_processing.crud.auth import create_user
 from src.data_processing.crud.twitter import create_influencer, get_influencer_by_username
+from src.data_processing.models.database import BlockchainNetwork, BlockchainToken  # Updated imports
 
 client = TestClient(app)
 
@@ -73,6 +74,52 @@ def test_influencer(db: Session):
 
     # Clean up
     db.delete(influencer)
+    db.commit()
+
+
+@pytest.fixture
+def test_blockchain_network(db: Session):
+    """Create a test blockchain network"""
+    network = BlockchainNetwork(
+        name="testnet",
+        display_name="Test Network",
+        description="Test blockchain network for API tests",
+        hashtags=["test", "testnet"],
+        keywords=["test", "blockchain"]
+    )
+
+    db.add(network)
+    db.commit()
+    db.refresh(network)
+
+    yield network
+
+    # Clean up
+    db.delete(network)
+    db.commit()
+
+
+@pytest.fixture
+def test_blockchain_token(db: Session, test_blockchain_network):
+    """Create a test blockchain token"""
+    token = BlockchainToken(
+        token_address="apitest123456789",
+        symbol="APITEST",
+        name="API Test Token",
+        blockchain_network=test_blockchain_network.name,
+        blockchain_network_id=test_blockchain_network.id,
+        network_confidence=0.9,
+        manually_verified=True
+    )
+
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+
+    yield token
+
+    # Clean up
+    db.delete(token)
     db.commit()
 
 
@@ -330,3 +377,125 @@ def test_delete_influencer_endpoint(auth_headers, db: Session):
     assert deleted is None
 
     print("✓ Successfully tested deleting an influencer")
+
+
+def test_blockchain_networks_endpoint(auth_headers, test_blockchain_network):
+    """Test getting blockchain networks"""
+    headers, _ = auth_headers
+
+    response = client.get("/twitter/networks", headers=headers)
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert isinstance(data, list)
+
+    # Find our test network
+    found = False
+    for network in data:
+        if network["id"] == test_blockchain_network.id:
+            found = True
+            assert network["name"] == test_blockchain_network.name
+            assert network["display_name"] == test_blockchain_network.display_name
+            break
+
+    assert found, "Test blockchain network not found in the list"
+
+    print("✓ Successfully tested getting blockchain networks")
+
+
+def test_blockchain_tokens_endpoint(auth_headers, test_blockchain_token):
+    """Test getting blockchain tokens"""
+    headers, _ = auth_headers
+
+    response = client.get("/twitter/tokens", headers=headers)
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert isinstance(data, list)
+
+    # Find our test token
+    found = False
+    for token in data:
+        if token["id"] == test_blockchain_token.id:
+            found = True
+            assert token["symbol"] == test_blockchain_token.symbol
+            assert token["blockchain_network"] == test_blockchain_token.blockchain_network
+            break
+
+    assert found, "Test blockchain token not found in the list"
+
+    print("✓ Successfully tested getting blockchain tokens")
+
+
+def test_create_blockchain_network_endpoint(auth_headers, db: Session):
+    """Test creating a new blockchain network"""
+    headers, _ = auth_headers
+
+    timestamp = datetime.utcnow().timestamp()
+    network_name = f"testnet_{timestamp}"
+
+    network_data = {
+        "name": network_name,
+        "display_name": "Test Network API",
+        "description": "Test network created via API",
+        "hashtags": ["test", "api"],
+        "keywords": ["test", "network", "api"],
+        "is_active": True
+    }
+
+    response = client.post(
+        "/twitter/networks",
+        json=network_data,
+        headers=headers
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+
+    assert data["name"] == network_name
+    assert data["display_name"] == "Test Network API"
+
+    # Clean up - find and delete the created network
+    created_network = db.query(BlockchainNetwork).filter(BlockchainNetwork.name == network_name).first()
+    if created_network:
+        db.delete(created_network)
+        db.commit()
+
+    print("✓ Successfully tested creating a blockchain network")
+
+
+def test_create_blockchain_token_endpoint(auth_headers, test_blockchain_network, db: Session):
+    """Test creating a new blockchain token"""
+    headers, _ = auth_headers
+
+    timestamp = datetime.utcnow().timestamp()
+    token_symbol = f"TST{int(timestamp) % 10000}"
+
+    token_data = {
+        "token_address": f"address_{timestamp}",
+        "symbol": token_symbol,
+        "name": "Test Token API",
+        "blockchain_network": test_blockchain_network.name
+    }
+
+    response = client.post(
+        "/twitter/tokens",
+        json=token_data,
+        headers=headers
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+
+    assert data["symbol"] == token_symbol
+    assert data["blockchain_network"] == test_blockchain_network.name
+
+    # Clean up - find and delete the created token
+    created_token = db.query(BlockchainToken).filter(BlockchainToken.symbol == token_symbol).first()
+    if created_token:
+        db.delete(created_token)
+        db.commit()
+
+    print("✓ Successfully tested creating a blockchain token")
