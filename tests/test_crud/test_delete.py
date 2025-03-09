@@ -23,10 +23,7 @@ from src.data_processing.crud.delete import (
     delete_blockchain_token_by_address,
     delete_blockchain_token_cascade
 )
-from src.data_processing.models.database import SentimentEnum, BlockchainToken, BlockchainNetwork, Tweet, SentimentAnalysis, TokenMention
-# Ensure all models are imported to resolve the circular dependency issue
-from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
-from src.data_processing.models.notifications import Notification, NotificationType, NotificationPriority
+from src.data_processing.models.database import SentimentEnum
 
 
 @pytest.fixture

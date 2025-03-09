@@ -16,7 +16,6 @@ from src.data_processing.crud.core_queries import (
     get_top_users_by_token, analyze_token_correlation, get_sentiment_momentum
 )
 from src.data_processing.models.database import SentimentEnum, TokenMention, SentimentAnalysis, Tweet
-# Ensure all models are properly imported to avoid mapper errors
 from src.data_processing.models.database import BlockchainToken, BlockchainNetwork
 from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
 from src.data_processing.models.notifications import Notification, NotificationType, NotificationPriority
@@ -137,13 +136,9 @@ def test_data(db):
     # Helper to create tweet batches
     def create_tweet_batch(count, days_ago, sentiment, token, confidence, author="user1"):
         for i in range(count):
-            network_prefix = ""
-            if token.blockchain_network:
-                network_prefix = f"{token.blockchain_network}_"
-
             tweet = create_tweet(
                 db=db,
-                tweet_id=f"tweet_{network_prefix}{token.symbol}_{days_ago}_{i}",
+                tweet_id=f"tweet_{token.symbol}_{days_ago}_{i}",
                 text=f"Test tweet about ${token.symbol} with {sentiment.value.lower()} sentiment",
                 created_at=now - timedelta(days=days_ago, hours=i),
                 author_id=f"author_{author}_{i}",
@@ -400,14 +395,11 @@ def test_compare_token_sentiments(db, test_data):
     # Verify structure and data
     assert "period" in comparison
     assert "tokens" in comparison
+    assert "SOL" in comparison["tokens"]
+    assert "USDC" in comparison["tokens"]
+    assert "RAY" in comparison["tokens"]
 
-    # Update assertion to check for tokens with or without network
-    token_keys = comparison["tokens"].keys()
-    assert any("SOL" in key for key in token_keys)
-    assert any("USDC" in key for key in token_keys)
-    assert any("RAY" in key for key in token_keys)
-
-    for symbol_key, data in comparison["tokens"].items():
+    for symbol, data in comparison["tokens"].items():
         assert "total_mentions" in data
         assert data["total_mentions"] > 0
         assert "sentiment_score" in data
@@ -426,10 +418,9 @@ def test_compare_token_sentiments(db, test_data):
         days_back=7
     )
 
-    network_token_keys = comparison_with_networks["tokens"].keys()
-    assert any("SOL" in key for key in network_token_keys)
-    assert any("USDC (solana)" in key for key in network_token_keys)
-    assert any("USDC (ethereum)" in key for key in network_token_keys)
+    assert "SOL" in comparison_with_networks["tokens"]
+    assert "USDC (solana)" in comparison_with_networks["tokens"]
+    assert "USDC (ethereum)" in comparison_with_networks["tokens"]
 
     print("✓ Successfully compared token sentiments")
 
