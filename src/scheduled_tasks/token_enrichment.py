@@ -236,3 +236,102 @@ async def update_token_information(days_since_update: int = 30):
         logger.error(f"Error in scheduled task to update token information: {e}")
     finally:
         db.close()
+
+
+async def auto_categorize_tokens(
+        min_confidence: float = 0.8,
+        max_tokens: int = 50
+) -> Dict[str, Any]:
+    """
+    Scheduled task to automatically categorize tokens with high confidence scores.
+    Only categorizes tokens where network detection has high confidence.
+
+    Args:
+        min_confidence: Minimum confidence score to auto-categorize (0-1)
+        max_tokens: Maximum number of tokens to process in one run
+
+    Returns:
+        Dictionary with statistics about the categorization
+    """
+    db = next(get_db())
+    try:
+        logger.info(f"Starting scheduled task: Auto-categorizing tokens (confidence >= {min_confidence})")
+
+        # Get tokens needing categorization
+        tokens_to_categorize = db.query(BlockchainToken).filter(
+            or_(
+                BlockchainToken.blockchain_network == None,  # No network assigned
+                and_(
+                    BlockchainToken.network_confidence < 0.7,  # Low confidence score
+                    BlockchainToken.manually_verified == False  # Not manually verified
+                )
+            )
+        ).limit(max_tokens).all()
+
+        if not tokens_to_categorize:
+            logger.info("No tokens found that need categorization")
+            return {"auto_categorized": 0, "flagged_for_review": 0}
+
+        logger.info(f"Found {len(tokens_to_categorize)} tokens to analyze")
+
+        auto_categorized = 0
+        flagged_for_review = 0
+
+        # Initialize notification service
+        notification_service = NotificationService(db)
+
+        # Process each token
+        for token in tokens_to_categorize:
+            try:
+                # Analyze token to detect network
+                analysis = analyze_token_for_network_detection(db, token.id, min_confidence)
+
+                if not analysis["needs_manual_review"] and analysis["recommended_network"]:
+                    # Auto-categorize if confidence is high enough
+                    network_id = analysis["recommended_network"]["id"]
+                    confidence = analysis["confidence_score"]
+
+                    # Update token with detected network
+                    update_token_blockchain_network(
+                        db=db,
+                        token_id=token.id,
+                        blockchain_network_id=network_id,
+                        confidence=confidence,
+                        manually_verified=False,  # Auto-detected
+                        needs_review=False  # High confidence, doesn't need review
+                    )
+
+                    auto_categorized += 1
+                    logger.info(
+                        f"Auto-categorized token {token.symbol} to network {analysis['recommended_network']['name']} with confidence {confidence:.2f}")
+                else:
+                    # Flag for manual review if confidence is low
+                    if not token.needs_review:
+                        token.needs_review = True
+                        db.commit()
+
+                        # Create notification for uncategorized token
+                        mention_count = db.query(TokenMention).filter(TokenMention.token_id == token.id).count()
+                        notification_service.notify_uncategorized_token(token.id, mention_count)
+
+                        flagged_for_review += 1
+
+                        logger.info(
+                            f"Flagged token {token.symbol} for review with confidence {analysis['confidence_score']:.2f}")
+
+            except Exception as e:
+                logger.error(f"Error processing token {token.symbol} (ID: {token.id}): {e}")
+
+        logger.info(
+            f"Auto-categorization complete: {auto_categorized} tokens categorized, {flagged_for_review} flagged for review")
+
+        return {
+            "auto_categorized": auto_categorized,
+            "flagged_for_review": flagged_for_review
+        }
+
+    except Exception as e:
+        logger.error(f"Error in auto_categorize_tokens task: {e}")
+        return {"error": str(e), "auto_categorized": 0, "flagged_for_review": 0}
+    finally:
+        db.close()
