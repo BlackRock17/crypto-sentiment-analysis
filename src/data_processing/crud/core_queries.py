@@ -3007,3 +3007,69 @@ def analyze_token_for_network_detection(
         "needs_manual_review": needs_manual_review,
         "reason": "Low confidence score" if needs_manual_review and best_network else "No clear network detected"
     }
+
+
+def run_network_detection_batch(
+        db: Session,
+        min_mentions: int = 3,
+        max_tokens: int = 100,
+        min_confidence: float = 0.0
+) -> List[Dict[str, Any]]:
+    """
+    Run network detection on a batch of uncategorized tokens.
+    Useful for testing the detection algorithms and monitoring performance.
+
+    Args:
+        db: Database session
+        min_mentions: Minimum number of mentions for a token to be included
+        max_tokens: Maximum number of tokens to analyze
+        min_confidence: Minimum confidence threshold for results
+
+    Returns:
+        List of detection results
+    """
+    # Get tokens needing categorization with enough mentions
+    query = db.query(
+        BlockchainToken,
+        func.count(TokenMention.id).label("mention_count")
+    ).outerjoin(
+        TokenMention, TokenMention.token_id == BlockchainToken.id
+    ).filter(
+        or_(
+            BlockchainToken.blockchain_network == None,  # No network assigned
+            and_(
+                BlockchainToken.network_confidence < 0.7,  # Low confidence score
+                BlockchainToken.manually_verified == False  # Not manually verified
+            )
+        )
+    ).group_by(
+        BlockchainToken.id
+    ).having(
+        func.count(TokenMention.id) >= min_mentions
+    ).order_by(
+        desc("mention_count")
+    ).limit(max_tokens)
+
+    token_mentions = query.all()
+
+    results = []
+    for token, mention_count in token_mentions:
+        try:
+            # Analyze token
+            analysis = analyze_token_for_network_detection(db, token.id, min_confidence)
+
+            # Add mention count to results
+            analysis["mention_count"] = mention_count
+
+            results.append(analysis)
+        except Exception as e:
+            logger.error(f"Error analyzing token {token.id}: {e}")
+            # Add error info to results
+            results.append({
+                "token_id": token.id,
+                "token_symbol": token.symbol,
+                "error": str(e),
+                "mention_count": mention_count
+            })
+
+    return results
