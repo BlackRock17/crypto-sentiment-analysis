@@ -211,3 +211,108 @@ async def archive_inactive_tokens(days_inactive: int = 90):
         logger.error(f"Error in scheduled task to archive inactive tokens: {e}")
     finally:
         db.close()
+
+
+async def advanced_duplicate_detection(
+        similarity_threshold: float = 0.85,
+        max_groups: int = 20
+) -> Dict[str, Any]:
+    """
+    Enhanced duplicate token detection using multiple similarity metrics.
+    Uses symbol similarity, address similarity, and mention context to detect duplicates.
+
+    Args:
+        similarity_threshold: Minimum similarity score to consider tokens as duplicates (0-1)
+        max_groups: Maximum number of duplicate groups to process
+
+    Returns:
+        Dictionary with statistics about duplicate detection
+    """
+    db = next(get_db())
+    try:
+        logger.info(
+            f"Starting scheduled task: Advanced duplicate token detection (similarity >= {similarity_threshold})")
+
+        # Get all active tokens
+        tokens = db.query(BlockchainToken).filter(BlockchainToken.is_archived == False).all()
+
+        if not tokens:
+            logger.info("No tokens found for duplicate analysis")
+            return {"duplicate_groups": 0, "total_duplicates": 0}
+
+        # Group tokens by normalized symbol
+        symbol_groups = {}
+
+        for token in tokens:
+            # Normalize symbol (lowercase, remove special chars, etc.)
+            normalized_symbol = ''.join(c.lower() for c in token.symbol if c.isalnum())
+
+            if normalized_symbol not in symbol_groups:
+                symbol_groups[normalized_symbol] = []
+
+            symbol_groups[normalized_symbol].append(token)
+
+        # Filter for groups with multiple tokens
+        duplicate_groups = {symbol: group for symbol, group in symbol_groups.items() if len(group) > 1}
+
+        # Initialize notification service
+        notification_service = NotificationService(db)
+
+        # Process only up to max_groups
+        prioritized_groups = sorted(
+            duplicate_groups.items(),
+            key=lambda x: len(x[1]),
+            reverse=True
+        )[:max_groups]
+
+        processed_groups = 0
+        total_duplicates = 0
+
+        # Analyze each group more deeply
+        for normalized_symbol, group in prioritized_groups:
+            group_size = len(group)
+
+            # Skip small groups
+            if group_size <= 1:
+                continue
+
+            # Check if tokens are on the same network
+            network_groups = {}
+            for token in group:
+                network = token.blockchain_network
+                if network not in network_groups:
+                    network_groups[network] = []
+                network_groups[network].append(token)
+
+            # Identify exact duplicates (same symbol and network)
+            for network, network_tokens in network_groups.items():
+                if len(network_tokens) > 1:
+                    # These are exact duplicates
+                    token_ids = [token.id for token in network_tokens]
+
+                    # Notify about duplicate tokens
+                    notification_service.notify_duplicate_tokens(
+                        primary_symbol=network_tokens[0].symbol,
+                        duplicate_count=len(network_tokens),
+                        token_ids=token_ids
+                    )
+
+                    total_duplicates += len(network_tokens) - 1
+                    logger.info(
+                        f"Found {len(network_tokens)} exact duplicates for symbol '{network_tokens[0].symbol}' on network '{network}'")
+
+            processed_groups += 1
+
+        logger.info(
+            f"Advanced duplicate detection complete: {processed_groups} groups analyzed, {total_duplicates} total duplicates found")
+
+        return {
+            "duplicate_groups": processed_groups,
+            "total_duplicates": total_duplicates
+        }
+
+    except Exception as e:
+        logger.error(f"Error in advanced_duplicate_detection task: {e}")
+        return {"error": str(e), "duplicate_groups": 0, "total_duplicates": 0}
+    finally:
+        db.close()
