@@ -2,16 +2,14 @@ import pytest
 import uuid
 from datetime import datetime
 from src.data_processing.database import get_db
-from src.data_processing.models.database import SentimentEnum, BlockchainToken, BlockchainNetwork, Tweet, \
-    SentimentAnalysis, TokenMention
-from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
-from src.data_processing.models.notifications import Notification, NotificationType, NotificationPriority
 from src.data_processing.crud.create import (
     create_blockchain_token,
     create_tweet,
     create_sentiment_analysis,
-    create_token_mention
+    create_token_mention,
+    create_blockchain_network
 )
+from src.data_processing.models.database import SentimentEnum
 
 
 @pytest.fixture
@@ -34,16 +32,14 @@ def generate_unique_tweet_id():
 
 def test_create_blockchain_network(db):
     """Test creating a blockchain network"""
-    network = BlockchainNetwork(
+    network = create_blockchain_network(
+        db=db,
         name="ethereum",
         display_name="Ethereum",
         description="Ethereum blockchain network",
         hashtags=["ethereum", "eth", "erc20"],
         keywords=["ethereum", "eth", "defi", "metamask"]
     )
-
-    db.add(network)
-    db.commit()
 
     assert network.name == "ethereum"
     assert network.display_name == "Ethereum"
@@ -60,12 +56,11 @@ def test_create_blockchain_network(db):
 def test_create_blockchain_token(db):
     """Test creating a blockchain token"""
     # First create a network
-    network = BlockchainNetwork(
+    network = create_blockchain_network(
+        db=db,
         name="solana",
         display_name="Solana"
     )
-    db.add(network)
-    db.commit()
 
     token = create_blockchain_token(
         db=db,
@@ -166,12 +161,11 @@ def test_create_sentiment_analysis(db):
 def test_create_token_mention(db):
     """Test creating a token mention"""
     # Create network
-    network = BlockchainNetwork(
+    network = create_blockchain_network(
+        db=db,
         name="solana",
         display_name="Solana"
     )
-    db.add(network)
-    db.commit()
 
     token = create_blockchain_token(
         db=db,
