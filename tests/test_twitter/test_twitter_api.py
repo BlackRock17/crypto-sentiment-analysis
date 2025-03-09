@@ -285,14 +285,17 @@ def test_add_manual_tweet(auth_headers, test_influencer, db: Session):
     """Test manually adding a tweet"""
     headers, _ = auth_headers
 
+    # Генериране на уникален tweet_id
+    unique_tweet_id = f"manual_{int(datetime.utcnow().timestamp())}"
+
+    # Осигуряване че всички задължителни полета са включени
     tweet_data = {
         "influencer_username": test_influencer.username,
         "text": "This is a manual test tweet about $SOL and $RAY #solana",
+        "created_at": datetime.utcnow().isoformat(),  # Предостави времева марка в ISO формат
+        "tweet_id": unique_tweet_id,  # Уникален tweet_id
         "retweet_count": 5,
-        "like_count": 10,
-        # Add missing fields that might be required in the endpoint
-        "created_at": datetime.utcnow().isoformat(),
-        "tweet_id": f"manual_{int(datetime.utcnow().timestamp())}"
+        "like_count": 10
     }
 
     response = client.post(

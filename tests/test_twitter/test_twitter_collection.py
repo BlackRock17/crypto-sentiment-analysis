@@ -134,12 +134,15 @@ def test_add_manual_tweet(db: Session, test_blockchain_token):
     # Create test tweet data
     tweet_text = f"Manual test tweet about ${test_blockchain_token.symbol} on #{test_blockchain_token.blockchain_network}"
 
+    # Създаване на уникален tweet_id
+    unique_tweet_id = f"manual_{int(datetime.utcnow().timestamp())}"
+
     # Add manual tweet with all required parameters
     stored_tweet, mentions_count = service.add_manual_tweet(
         influencer_username="test_manual_user",
         tweet_text=tweet_text,
         created_at=datetime.utcnow(),  # Make sure to provide the created_at parameter
-        tweet_id=f"manual_{int(datetime.utcnow().timestamp())}",  # Provide a unique tweet_id
+        tweet_id=unique_tweet_id,  # Provide a unique tweet_id
         retweet_count=10,
         like_count=20
     )
@@ -152,10 +155,6 @@ def test_add_manual_tweet(db: Session, test_blockchain_token):
 
     # Verify token mention was created
     mentions = db.query(TokenMention).filter(TokenMention.tweet_id == stored_tweet.id).all()
-
-    # If no mentions are found, this might be expected in test mode
-    # So we'll check the mentions_count instead
-    assert mentions_count >= 0
 
     # Clean up
     if mentions:
