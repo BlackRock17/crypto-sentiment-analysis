@@ -16,13 +16,13 @@ from src.data_collection.tasks.twitter_tasks import collect_automated_tweets
 from src.scheduled_tasks.token_maintenance import (
     check_for_duplicate_tokens,
     auto_merge_exact_duplicates,
-    archive_inactive_tokens
+    archive_inactive_tokens, advanced_duplicate_detection
 )
 
 # Import token enrichment tasks
 from src.scheduled_tasks.token_enrichment import (
     enrich_uncategorized_tokens,
-    update_token_information
+    update_token_information, auto_categorize_tokens
 )
 
 
@@ -165,6 +165,43 @@ def _configure_scheduled_jobs(scheduler: AsyncIOScheduler) -> None:
     )
 
     logger.info("Scheduled job: archive_inactive_tokens (monthly on the 1st at 5:00 AM)")
+
+    # Schedule token categorization tasks (daily at 1:30 AM)
+    scheduler.add_job(
+        auto_categorize_tokens,
+        'cron',
+        hour=1,
+        minute=30,
+        id='auto_categorize_tokens',
+        replace_existing=True
+    )
+
+    logger.info("Scheduled job: auto_categorize_tokens (daily at 1:30 AM)")
+
+    # Schedule advanced duplicate detection (daily at 2:30 AM)
+    scheduler.add_job(
+        advanced_duplicate_detection,
+        'cron',
+        hour=2,
+        minute=30,
+        id='advanced_duplicate_detection',
+        replace_existing=True
+    )
+
+    logger.info("Scheduled job: advanced_duplicate_detection (daily at 2:30 AM)")
+
+    # Schedule automatic merging of exact duplicates (weekly on Tuesday at 3:30 AM)
+    scheduler.add_job(
+        auto_merge_exact_duplicates,
+        'cron',
+        day_of_week='tue',
+        hour=3,
+        minute=30,
+        id='auto_merge_exact_duplicates',
+        replace_existing=True
+    )
+
+    logger.info("Scheduled job: auto_merge_exact_duplicates (weekly on Tuesday at 3:30 AM)")
 
 
 def shutdown_scheduler() -> None:
