@@ -1395,3 +1395,103 @@ async def analyze_token_network_detection(
     except Exception as e:
         logger.error(f"Error analyzing token {token_id}: {e}")
         raise ServerErrorException(f"Error analyzing token: {str(e)}")
+
+
+@router.post("/tokens/batch-categorize", response_model=Dict[str, Any])
+async def batch_categorize_tokens(
+        token_ids: List[int] = Body(..., min_items=1),
+        confidence_threshold: float = Body(0.8, ge=0, le=1),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Analyze and potentially auto-categorize a batch of tokens.
+
+    Args:
+        token_ids: List of token IDs to analyze
+        confidence_threshold: Minimum confidence for auto-categorization
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Results of the batch operation
+    """
+    results = {
+        "total": len(token_ids),
+        "processed": 0,
+        "auto_categorized": 0,
+        "manual_review": 0,
+        "errors": 0,
+        "tokens": []
+    }
+
+    for token_id in token_ids:
+        try:
+            # Check if token exists
+            token = get_blockchain_token_by_id(db, token_id)
+            if not token:
+                results["tokens"].append({
+                    "token_id": token_id,
+                    "status": "error",
+                    "message": "Token not found"
+                })
+                results["errors"] += 1
+                continue
+
+            # Analyze token
+            analysis = analyze_token_for_network_detection(db, token_id, confidence_threshold)
+
+            token_result = {
+                "token_id": token_id,
+                "symbol": token.symbol,
+                "confidence_score": analysis["confidence_score"]
+            }
+
+            # Auto-categorize if confidence is high enough
+            if (not analysis["needs_manual_review"] and
+                    analysis["recommended_network"] and
+                    analysis["confidence_score"] >= confidence_threshold):
+
+                network_id = analysis["recommended_network"]["id"]
+                network_name = analysis["recommended_network"]["name"]
+                confidence = analysis["confidence_score"]
+
+                # Update token with detected network
+                updated_token = update_token_blockchain_network(
+                    db=db,
+                    token_id=token_id,
+                    blockchain_network_id=network_id,
+                    confidence=confidence,
+                    manually_verified=True,  # Admin-initiated, so mark as manually verified
+                    needs_review=False
+                )
+
+                token_result["status"] = "auto_categorized"
+                token_result["network"] = network_name
+                results["auto_categorized"] += 1
+
+            else:
+                # Flag for manual review
+                if not token.needs_review:
+                    token.needs_review = True
+                    db.commit()
+
+                token_result["status"] = "needs_review"
+                token_result["recommended_networks"] = [
+                    {"network": n["network"], "confidence": n["confidence"]}
+                    for n in analysis["detected_networks"][:3]  # Top 3 networks
+                ] if analysis["detected_networks"] else []
+
+                results["manual_review"] += 1
+
+            results["tokens"].append(token_result)
+            results["processed"] += 1
+
+        except Exception as e:
+            logger.error(f"Error processing token {token_id}: {e}")
+            results["tokens"].append({
+                "token_id": token_id,
+                "status": "error",
+                "message": str(e)
+            })
+            results["errors"] += 1
