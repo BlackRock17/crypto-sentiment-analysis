@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, BackgroundTasks, P
 from sqlalchemy import func, desc, or_, and_
 from sqlalchemy.orm import Session
 
+from src.data_processing.crud.core_queries import analyze_token_for_network_detection
 from src.data_processing.database import get_db
 from src.data_collection.tasks.twitter_tasks import collect_automated_tweets, add_manual_tweet
 from src.security.auth import get_current_superuser, get_current_active_user
@@ -1363,3 +1364,34 @@ async def archive_token(
 
     # Enhance token with network information
     return enhance_token_response(token, db)
+
+
+@router.get("/tokens/{token_id}/analyze", response_model=Dict[str, Any])
+async def analyze_token_network_detection(
+        token_id: int = Path(..., gt=0),
+        current_user: User = Depends(get_current_superuser),
+        db: Session = Depends(get_db)
+):
+    """
+    Analyze a token to detect its most likely blockchain network.
+
+    Args:
+        token_id: Token ID to analyze
+        current_user: Current authenticated user (must be admin)
+        db: Database session
+
+    Returns:
+        Analysis results with detected networks and confidence scores
+    """
+    # Check if token exists
+    token = get_blockchain_token_by_id(db, token_id)
+    if not token:
+        raise NotFoundException(f"Token with ID {token_id} not found")
+
+    # Perform advanced analysis
+    try:
+        analysis = analyze_token_for_network_detection(db, token_id)
+        return analysis
+    except Exception as e:
+        logger.error(f"Error analyzing token {token_id}: {e}")
+        raise ServerErrorException(f"Error analyzing token: {str(e)}")
