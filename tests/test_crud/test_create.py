@@ -2,13 +2,16 @@ import pytest
 import uuid
 from datetime import datetime
 from src.data_processing.database import get_db
+from src.data_processing.models.database import SentimentEnum, BlockchainToken, BlockchainNetwork, Tweet, \
+    SentimentAnalysis, TokenMention
+from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
+from src.data_processing.models.notifications import Notification, NotificationType, NotificationPriority
 from src.data_processing.crud.create import (
-    create_solana_token,
+    create_blockchain_token,
     create_tweet,
     create_sentiment_analysis,
     create_token_mention
 )
-from src.data_processing.models.database import SentimentEnum
 
 
 @pytest.fixture
@@ -20,7 +23,7 @@ def db():
 
 
 def generate_unique_address():
-    """Generate unique Solana address"""
+    """Generate unique blockchain address"""
     return f"So{uuid.uuid4().hex[:40]}2"
 
 
@@ -29,22 +32,88 @@ def generate_unique_tweet_id():
     return str(uuid.uuid4().int)[:15]
 
 
-def test_create_solana_token(db):
-    """Test creating a Solana token"""
-    token = create_solana_token(
-        db=db,
-        token_address=generate_unique_address(),
-        symbol="USDC",
-        name="USD Coin"
+def test_create_blockchain_network(db):
+    """Test creating a blockchain network"""
+    network = BlockchainNetwork(
+        name="ethereum",
+        display_name="Ethereum",
+        description="Ethereum blockchain network",
+        hashtags=["ethereum", "eth", "erc20"],
+        keywords=["ethereum", "eth", "defi", "metamask"]
     )
 
-    assert token.symbol == "USDC"
-    assert token.name == "USD Coin"
+    db.add(network)
+    db.commit()
+
+    assert network.name == "ethereum"
+    assert network.display_name == "Ethereum"
+    assert network.is_active == True
+    assert "ethereum" in network.hashtags
+    assert "defi" in network.keywords
+
+    db.delete(network)
+    db.commit()
+
+    print("✓ Successfully created and verified blockchain network")
+
+
+def test_create_blockchain_token(db):
+    """Test creating a blockchain token"""
+    # First create a network
+    network = BlockchainNetwork(
+        name="solana",
+        display_name="Solana"
+    )
+    db.add(network)
+    db.commit()
+
+    token = create_blockchain_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="SOL",
+        name="Solana",
+        blockchain_network="solana",
+        blockchain_network_id=network.id,
+        network_confidence=1.0,
+        manually_verified=True
+    )
+
+    assert token.symbol == "SOL"
+    assert token.name == "Solana"
+    assert token.blockchain_network == "solana"
+    assert token.blockchain_network_id == network.id
+    assert token.network_confidence == 1.0
+    assert token.manually_verified == True
+
+    # Clean up
+    db.delete(token)
+    db.delete(network)
+    db.commit()
+
+    print("✓ Successfully created and verified blockchain token")
+
+
+def test_create_token_without_network(db):
+    """Test creating a token without a specific blockchain network"""
+    token = create_blockchain_token(
+        db=db,
+        token_address=generate_unique_address(),
+        symbol="UNKNOWN",
+        name="Unknown Token",
+        network_confidence=0.0,
+        needs_review=True
+    )
+
+    assert token.symbol == "UNKNOWN"
+    assert token.blockchain_network is None
+    assert token.blockchain_network_id is None
+    assert token.network_confidence == 0.0
+    assert token.needs_review == True
 
     db.delete(token)
     db.commit()
 
-    print("✓ Successfully created and verified Solana token")
+    print("✓ Successfully created and verified token without network")
 
 
 def test_create_tweet(db):
@@ -52,13 +121,13 @@ def test_create_tweet(db):
     tweet = create_tweet(
         db=db,
         tweet_id=generate_unique_tweet_id(),
-        text="Testing $USDC on Solana!",
+        text="Testing $SOL on Solana!",
         created_at=datetime.utcnow(),
         author_id=str(uuid.uuid4().int)[:6],
         author_username="crypto_tester"
     )
 
-    assert tweet.text == "Testing $USDC on Solana!"
+    assert tweet.text == "Testing $SOL on Solana!"
 
     db.delete(tweet)
     db.commit()
@@ -96,11 +165,21 @@ def test_create_sentiment_analysis(db):
 
 def test_create_token_mention(db):
     """Test creating a token mention"""
-    token = create_solana_token(
+    # Create network
+    network = BlockchainNetwork(
+        name="solana",
+        display_name="Solana"
+    )
+    db.add(network)
+    db.commit()
+
+    token = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="RAY",
-        name="Raydium"
+        name="Raydium",
+        blockchain_network="solana",
+        blockchain_network_id=network.id
     )
 
     tweet = create_tweet(
@@ -124,6 +203,7 @@ def test_create_token_mention(db):
     db.delete(mention)
     db.delete(tweet)
     db.delete(token)
+    db.delete(network)
     db.commit()
 
     print("✓ Successfully created and verified Token Mention")
