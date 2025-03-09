@@ -3,27 +3,30 @@ import uuid
 from datetime import datetime
 from src.data_processing.database import get_db
 from src.data_processing.crud.create import (
-    create_solana_token,
+    create_blockchain_token,
     create_tweet,
     create_sentiment_analysis,
     create_token_mention
 )
 from src.data_processing.crud.read import (
-    get_solana_token_by_id,
+    get_blockchain_token_by_id,
     get_tweet_by_id,
     get_sentiment_analysis_by_id,
     get_token_mention_by_id
 )
 from src.data_processing.crud.delete import (
-    delete_solana_token,
+    delete_blockchain_token,
     delete_tweet,
     delete_sentiment_analysis,
     delete_token_mention,
     delete_tweet_by_twitter_id,
-    delete_solana_token_by_address,
-    delete_solana_token_cascade
+    delete_blockchain_token_by_address,
+    delete_blockchain_token_cascade
 )
-from src.data_processing.models.database import SentimentEnum
+from src.data_processing.models.database import SentimentEnum, BlockchainToken, BlockchainNetwork, Tweet, SentimentAnalysis, TokenMention
+# Ensure all models are imported to resolve the circular dependency issue
+from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
+from src.data_processing.models.notifications import Notification, NotificationType, NotificationPriority
 
 
 @pytest.fixture
@@ -84,7 +87,7 @@ def test_delete_sentiment_analysis(db):
 def test_delete_token_mention(db):
     """Test deleting a token mention"""
     # Create a token
-    token = create_solana_token(
+    token = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="TEST",
@@ -154,7 +157,7 @@ def test_delete_tweet(db):
 def test_delete_tweet_cascade(db):
     """Test deleting a tweet with cascade"""
     # Create a token
-    token = create_solana_token(
+    token = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="TEST",
@@ -210,7 +213,7 @@ def test_delete_tweet_cascade(db):
 def test_delete_tweet_no_cascade(db):
     """Test deleting a tweet without cascade but with associated records"""
     # Create a token
-    token = create_solana_token(
+    token = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="TEST",
@@ -256,10 +259,10 @@ def test_delete_tweet_no_cascade(db):
     print("✓ Successfully prevented deletion of tweet with associated records without cascade")
 
 
-def test_delete_solana_token(db):
-    """Test deleting a Solana token"""
+def test_delete_blockchain_token(db):
+    """Test deleting a blockchain token"""
     # Create a token
-    token = create_solana_token(
+    token = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="TEST",
@@ -267,22 +270,22 @@ def test_delete_solana_token(db):
     )
 
     # Verify the token exists
-    assert get_solana_token_by_id(db, token.id) is not None
+    assert get_blockchain_token_by_id(db, token.id) is not None
 
     # Delete the token
-    result = delete_solana_token(db, token.id)
+    result = delete_blockchain_token(db, token.id)
     assert result is True
 
     # Verify the token is gone
-    assert get_solana_token_by_id(db, token.id) is None
+    assert get_blockchain_token_by_id(db, token.id) is None
 
-    print("✓ Successfully deleted Solana token")
+    print("✓ Successfully deleted blockchain token")
 
 
-def test_delete_solana_token_with_mentions(db):
-    """Test deleting a Solana token that has mentions"""
+def test_delete_blockchain_token_with_mentions(db):
+    """Test deleting a blockchain token that has mentions"""
     # Create a token
-    token = create_solana_token(
+    token = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="TEST",
@@ -308,14 +311,14 @@ def test_delete_solana_token_with_mentions(db):
 
     # Try to delete the token with check_mentions=True
     try:
-        delete_solana_token(db, token.id, check_mentions=True)
+        delete_blockchain_token(db, token.id, check_mentions=True)
         assert False, "Should have raised ValueError for deleting token with mentions"
     except ValueError:
         # This is expected behavior
         pass
 
     # Verify the token still exists
-    assert get_solana_token_by_id(db, token.id) is not None
+    assert get_blockchain_token_by_id(db, token.id) is not None
 
     # Clean up
     db.delete(mention)
@@ -326,10 +329,10 @@ def test_delete_solana_token_with_mentions(db):
     print("✓ Successfully prevented deletion of token with mentions")
 
 
-def test_delete_solana_token_cascade(db):
-    """Test deleting a Solana token with cascade"""
+def test_delete_blockchain_token_cascade(db):
+    """Test deleting a blockchain token with cascade"""
     # Create a token
-    token = create_solana_token(
+    token = create_blockchain_token(
         db=db,
         token_address=generate_unique_address(),
         symbol="TEST",
@@ -354,22 +357,22 @@ def test_delete_solana_token_cascade(db):
     )
 
     # Verify the token and mention exist
-    assert get_solana_token_by_id(db, token.id) is not None
+    assert get_blockchain_token_by_id(db, token.id) is not None
     assert get_token_mention_by_id(db, mention.id) is not None
 
     # Delete the token with cascade
-    result = delete_solana_token_cascade(db, token.id)
+    result = delete_blockchain_token_cascade(db, token.id)
     assert result is True
 
     # Verify the token and mention are gone
-    assert get_solana_token_by_id(db, token.id) is None
+    assert get_blockchain_token_by_id(db, token.id) is None
     assert get_token_mention_by_id(db, mention.id) is None
 
     # Clean up
     db.delete(tweet)
     db.commit()
 
-    print("✓ Successfully deleted Solana token with cascade")
+    print("✓ Successfully deleted blockchain token with cascade")
 
 
 def test_delete_tweet_by_twitter_id(db):
@@ -398,11 +401,11 @@ def test_delete_tweet_by_twitter_id(db):
     print("✓ Successfully deleted tweet by Twitter ID")
 
 
-def test_delete_solana_token_by_address(db):
-    """Test deleting a Solana token by address"""
+def test_delete_blockchain_token_by_address(db):
+    """Test deleting a blockchain token by address"""
     # Create a token
     address = generate_unique_address()
-    token = create_solana_token(
+    token = create_blockchain_token(
         db=db,
         token_address=address,
         symbol="TEST",
@@ -410,22 +413,22 @@ def test_delete_solana_token_by_address(db):
     )
 
     # Verify the token exists
-    assert get_solana_token_by_id(db, token.id) is not None
+    assert get_blockchain_token_by_id(db, token.id) is not None
 
     # Delete the token by address
-    result = delete_solana_token_by_address(db, address)
+    result = delete_blockchain_token_by_address(db, address)
     assert result is True
 
     # Verify the token is gone
-    assert get_solana_token_by_id(db, token.id) is None
+    assert get_blockchain_token_by_id(db, token.id) is None
 
-    print("✓ Successfully deleted Solana token by address")
+    print("✓ Successfully deleted blockchain token by address")
 
 
 def test_delete_nonexistent_records(db):
     """Test deleting records that don't exist"""
     # Try to delete non-existent token
-    result = delete_solana_token(db, 99999)
+    result = delete_blockchain_token(db, 99999)
     assert result is False
 
     # Try to delete non-existent tweet
@@ -445,7 +448,7 @@ def test_delete_nonexistent_records(db):
     assert result is False
 
     # Try to delete non-existent token by address
-    result = delete_solana_token_by_address(db, "nonexistent_address")
+    result = delete_blockchain_token_by_address(db, "nonexistent_address")
     assert result is False
 
     print("✓ Successfully handled deletion of non-existent records")
