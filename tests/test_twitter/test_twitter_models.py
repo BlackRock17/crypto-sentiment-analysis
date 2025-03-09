@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from src.data_processing.database import get_db
 from src.data_processing.models.twitter import TwitterInfluencer, TwitterInfluencerTweet, TwitterApiUsage
+from src.data_processing.models.database import BlockchainToken, BlockchainNetwork  # Updated imports
 from src.data_processing.crud.twitter import (
     create_influencer, get_influencer, get_influencer_by_username,
     update_influencer, delete_influencer, toggle_influencer_automation,
@@ -43,6 +44,52 @@ def test_influencer(db: Session):
 
     # Clean up
     db.delete(influencer)
+    db.commit()
+
+
+@pytest.fixture
+def test_blockchain_network(db: Session):
+    """Create a test blockchain network"""
+    network = BlockchainNetwork(
+        name="testnet",
+        display_name="Test Network",
+        description="Test blockchain network",
+        hashtags=["test", "testnet"],
+        keywords=["test", "blockchain"]
+    )
+
+    db.add(network)
+    db.commit()
+    db.refresh(network)
+
+    yield network
+
+    # Clean up
+    db.delete(network)
+    db.commit()
+
+
+@pytest.fixture
+def test_blockchain_token(db: Session, test_blockchain_network):
+    """Create a test blockchain token"""
+    token = BlockchainToken(
+        token_address="testaddress123456789",
+        symbol="TEST",
+        name="Test Token",
+        blockchain_network=test_blockchain_network.name,
+        blockchain_network_id=test_blockchain_network.id,
+        network_confidence=0.9,
+        manually_verified=True
+    )
+
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+
+    yield token
+
+    # Clean up
+    db.delete(token)
     db.commit()
 
 
@@ -227,3 +274,53 @@ def test_get_api_usage_history(db: Session, test_influencer):
     db.commit()
 
     print("✓ Successfully tested getting API usage history")
+
+
+def test_twitter_model_with_blockchain_token(db: Session, test_influencer, test_blockchain_token):
+    """Test relationship between Twitter models and blockchain tokens"""
+    # Create a tweet
+    from src.data_processing.models.database import Tweet
+    tweet = Tweet(
+        tweet_id="12345",
+        text="Test tweet with $TEST token mention",
+        created_at=datetime.utcnow(),
+        author_id="author123",
+        author_username=test_influencer.username
+    )
+    db.add(tweet)
+    db.commit()
+
+    # Create token mention
+    from src.data_processing.models.database import TokenMention
+    mention = TokenMention(
+        tweet_id=tweet.id,
+        token_id=test_blockchain_token.id
+    )
+    db.add(mention)
+
+    # Create relationship between tweet and influencer
+    influencer_tweet = TwitterInfluencerTweet(
+        influencer_id=test_influencer.id,
+        tweet_id=tweet.id,
+        is_manually_added=True
+    )
+    db.add(influencer_tweet)
+    db.commit()
+
+    # Test the relationships
+    assert len(test_influencer.tweets) > 0
+    retrieved_tweet = db.query(Tweet).filter(Tweet.id == tweet.id).first()
+    assert retrieved_tweet is not None
+
+    # Test mention relationship
+    mentions = db.query(TokenMention).filter(TokenMention.tweet_id == tweet.id).all()
+    assert len(mentions) > 0
+    assert mentions[0].token_id == test_blockchain_token.id
+
+    # Clean up
+    db.delete(influencer_tweet)
+    db.delete(mention)
+    db.delete(tweet)
+    db.commit()
+
+    print("✓ Successfully tested Twitter model relationship with blockchain token")
