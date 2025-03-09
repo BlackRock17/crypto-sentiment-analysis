@@ -17,15 +17,28 @@ from src.data_processing.crud.auth import create_user
 
 
 @pytest.fixture
-def auth_headers():
+def auth_headers(db: Session):
     """Create an admin user and get auth headers."""
-    from src.security.utils import create_access_token
+    from src.security.utils import create_user_token
 
-    # Create a token for admin user
-    token_data = {"sub": "admin", "user_id": 1}
-    access_token = create_access_token(token_data)
+    # Create admin user
+    admin = create_user(
+        db=db,
+        username="admin",
+        email="admin@example.com",
+        password="securepassword",
+        is_superuser=True
+    )
 
-    return {"Authorization": f"Bearer {access_token}"}
+    # Create token
+    token = create_user_token(db, admin)
+
+    # Clean up after test
+    yield {"Authorization": f"Bearer {token.token}"}
+
+    # Delete admin user
+    db.delete(admin)
+    db.commit()
 
 
 @pytest.fixture
