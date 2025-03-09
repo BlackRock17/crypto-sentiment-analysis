@@ -1,9 +1,11 @@
-from typing import List
+import logging
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
 from src.data_processing.models.database import BlockchainToken, BlockchainNetwork, Tweet, SentimentEnum, SentimentAnalysis, TokenMention
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
 
 def update_blockchain_token(
         db: Session,

@@ -1,4 +1,5 @@
 import math
+import logging
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_, or_
@@ -10,6 +11,7 @@ from src.data_processing.crud.read import get_blockchain_token_by_id
 from src.data_processing.models.database import BlockchainToken, Tweet, SentimentAnalysis, TokenMention, SentimentEnum, \
     BlockchainNetwork
 
+logger = logging.getLogger(__name__)
 
 def get_token_sentiment_stats(
         db: Session,
