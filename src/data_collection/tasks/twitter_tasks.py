@@ -35,12 +35,12 @@ async def _async_collect_automated_tweets() -> bool:
             logger.error("Failed to connect to Twitter API")
             return False
 
-        # Collect and store tweets
-        tweets_stored, mentions_found = service.collect_and_store_automated_tweets()
+        # Collect tweets and send to Kafka
+        tweets_collected, _ = service.collect_and_store_automated_tweets()
 
         # Log results
         logger.info(
-            f"Automated collection task completed: {tweets_stored} tweets stored, {mentions_found} token mentions found"
+            f"Automated collection task completed: {tweets_collected} tweets sent to Kafka for processing"
         )
 
         return True
@@ -104,8 +104,8 @@ async def _async_add_manual_tweet(
         # Create service
         service = TwitterCollectionService(db)
 
-        # Add manual tweet
-        stored_tweet, mentions_count = service.add_manual_tweet(
+        # Add manual tweet via Kafka
+        stored_tweet, _ = service.add_manual_tweet(
             influencer_username=influencer_username,
             tweet_text=tweet_text,
             **kwargs
@@ -115,7 +115,7 @@ async def _async_add_manual_tweet(
             logger.error(f"Failed to add manual tweet for {influencer_username}")
             return False
 
-        logger.info(f"Manual tweet added with {mentions_count} token mentions")
+        logger.info(f"Manual tweet sent to Kafka for processing")
         return True
 
     except Exception as e:
