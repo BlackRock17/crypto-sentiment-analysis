@@ -19,6 +19,8 @@ from src.data_processing.crud.twitter import (
     get_automated_influencers, create_influencer_tweet, get_influencer_by_username
 )
 from src.services.notification_service import NotificationService
+# Add Kafka producer import
+from src.data_processing.kafka.producer import TwitterProducer
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -41,10 +43,12 @@ class TwitterCollectionService:
         self.client = TwitterAPIClient(db=db)
         self.processor = TwitterDataProcessor(self.client)
         self.repository = TwitterRepository(db)
+        # Initialize Twitter Kafka producer
+        self.kafka_producer = TwitterProducer()
 
     def collect_and_store_automated_tweets(self) -> Tuple[int, int]:
         """
-        Collect tweets from automated influencers and store them in the database.
+        Collect tweets from automated influencers and send them to Kafka for processing.
 
         Returns:
             Tuple of (tweets_collected, token_mentions_found)
@@ -61,12 +65,8 @@ class TwitterCollectionService:
 
         logger.info(f"Found {len(influencers)} automated influencers")
 
-        tweets_stored = 0
+        tweets_collected = 0
         mentions_found = 0
-
-        # Get blockchain networks for better token identification
-        blockchain_networks = self.repository.get_blockchain_networks()
-        known_tokens = self.repository.get_known_tokens()
 
         # Process each influencer
         for influencer in influencers:
@@ -88,24 +88,24 @@ class TwitterCollectionService:
 
             # Process each tweet
             for tweet_data in tweets_data:
-                # Store the tweet and create links
-                result = self._process_and_store_tweet(
-                    tweet_data,
-                    influencer.id,
-                    is_manually_added=False,
-                    known_tokens=known_tokens,
-                    blockchain_networks=blockchain_networks
-                )
+                # Add influencer metadata to the tweet data
+                tweet_data['influencer_id'] = influencer.id
+                tweet_data['influencer_username'] = influencer.username
 
-                if result:
-                    tweet_stored, mentions = result
-                    tweets_stored += 1 if tweet_stored else 0
-                    mentions_found += mentions
+                # Send to Kafka instead of storing directly
+                success = self.kafka_producer.send_tweet(tweet_data)
+
+                if success:
+                    tweets_collected += 1
+                else:
+                    logger.error(f"Failed to send tweet to Kafka: {tweet_data['tweet_id']}")
 
         logger.info(
-            f"Collection complete: stored {tweets_stored} influencer tweets with {mentions_found} token mentions"
+            f"Collection complete: collected {tweets_collected} influencer tweets"
         )
-        return tweets_stored, mentions_found
+
+        # Return approximate counts (actual processing will happen in Kafka consumers)
+        return tweets_collected, 0  # We don't know mentions count yet
 
     def add_manual_tweet(
             self,
@@ -117,7 +117,7 @@ class TwitterCollectionService:
             like_count: int = 0
     ) -> Tuple[Optional[Tweet], int]:
         """
-        Manually add a tweet for an influencer.
+        Manually add a tweet for an influencer and send to Kafka for processing.
 
         Args:
             influencer_username: Twitter username of the influencer
@@ -149,31 +149,48 @@ class TwitterCollectionService:
         tweet_data = {
             "tweet_id": tweet_id,
             "text": tweet_text,
-            "created_at": created_at or datetime.utcnow(),
+            "created_at": created_at.isoformat() if created_at else datetime.utcnow().isoformat(),
             "author_id": f"user_{influencer_username}",
             "author_username": influencer_username,
             "retweet_count": retweet_count,
-            "like_count": like_count
+            "like_count": like_count,
+            "influencer_id": influencer.id,
+            "influencer_username": influencer_username,
+            "is_manually_added": True  # Flag to indicate this is a manually added tweet
         }
 
-        # Get blockchain networks and known tokens for better identification
-        blockchain_networks = self.repository.get_blockchain_networks()
-        known_tokens = self.repository.get_known_tokens()
+        # Send to Kafka for processing
+        success = self.kafka_producer.send_tweet(tweet_data)
 
-        # Process and store tweet
-        result = self._process_and_store_tweet(
-            tweet_data,
-            influencer.id,
-            is_manually_added=True,
-            known_tokens=known_tokens,
-            blockchain_networks=blockchain_networks
-        )
-
-        if not result:
+        if not success:
+            logger.error(f"Failed to send manual tweet to Kafka")
             return None, 0
 
-        stored_tweet, mentions_count = result
-        return stored_tweet, mentions_count
+        # For backward compatibility, still return a Tweet object and placeholder mention count
+        # The actual processing will happen asynchronously through Kafka
+
+        # Create a placeholder tweet object to return
+        tweet = Tweet(
+            tweet_id=tweet_id,
+            text=tweet_text,
+            created_at=created_at or datetime.utcnow(),
+            author_id=f"user_{influencer_username}",
+            author_username=influencer_username,
+            retweet_count=retweet_count,
+            like_count=like_count
+        )
+
+        # Add a record for influencer-tweet association
+        create_influencer_tweet(
+            db=self.db,
+            influencer_id=influencer.id,
+            tweet_id=tweet.id if tweet.id else 0,  # Use placeholder ID if needed
+            is_manually_added=True
+        )
+
+        logger.info(f"Manual tweet sent to Kafka for processing: {tweet_id}")
+
+        return tweet, 0  # Return 0 mentions since actual processing happens via Kafka
 
     def _process_and_store_tweet(
             self,
