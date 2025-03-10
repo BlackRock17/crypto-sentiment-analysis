@@ -4,7 +4,7 @@ Provides functions to set up and manage scheduled tasks.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
@@ -25,13 +25,20 @@ from src.scheduled_tasks.token_enrichment import (
     update_token_information, auto_categorize_tokens
 )
 
-
+# Import Kafka consumers
+from src.data_processing.kafka.consumers.tweet_consumer import TweetConsumer
+from src.data_processing.kafka.consumers.token_mention_consumer import TokenMentionConsumer
+from src.data_processing.kafka.consumers.sentiment_consumer import SentimentConsumer
+from src.data_processing.kafka.consumers.token_categorization_consumer import TokenCategorizationConsumer
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 # Global scheduler instance
 scheduler: Optional[AsyncIOScheduler] = None
+
+# Global Kafka consumers
+kafka_consumers: Dict[str, Any] = {}
 
 
 def setup_scheduler() -> AsyncIOScheduler:
@@ -66,6 +73,9 @@ def setup_scheduler() -> AsyncIOScheduler:
 
     # Add scheduled jobs (will be defined later)
     _configure_scheduled_jobs(scheduler)
+
+    # Start Kafka consumers
+    _start_kafka_consumers()
 
     # Start the scheduler
     scheduler.start()
@@ -204,12 +214,62 @@ def _configure_scheduled_jobs(scheduler: AsyncIOScheduler) -> None:
     logger.info("Scheduled job: auto_merge_exact_duplicates (weekly on Tuesday at 3:30 AM)")
 
 
+def _start_kafka_consumers():
+    """
+    Start Kafka consumers as background services.
+    """
+    global kafka_consumers
+
+    try:
+        logger.info("Starting Kafka consumers...")
+
+        # Initialize and start tweet consumer
+        tweet_consumer = TweetConsumer()
+        tweet_consumer.start()
+        kafka_consumers['tweet_consumer'] = tweet_consumer
+        logger.info("Tweet consumer started")
+
+        # Initialize and start token mention consumer
+        token_mention_consumer = TokenMentionConsumer()
+        token_mention_consumer.start()
+        kafka_consumers['token_mention_consumer'] = token_mention_consumer
+        logger.info("Token mention consumer started")
+
+        # Initialize and start sentiment consumer
+        sentiment_consumer = SentimentConsumer()
+        sentiment_consumer.start()
+        kafka_consumers['sentiment_consumer'] = sentiment_consumer
+        logger.info("Sentiment consumer started")
+
+        # Initialize and start token categorization consumer
+        token_categorization_consumer = TokenCategorizationConsumer()
+        token_categorization_consumer.start()
+        kafka_consumers['token_categorization_consumer'] = token_categorization_consumer
+        logger.info("Token categorization consumer started")
+
+        logger.info("All Kafka consumers started successfully")
+
+    except Exception as e:
+        logger.error(f"Error starting Kafka consumers: {e}")
+
+
 def shutdown_scheduler() -> None:
     """
-    Shut down the task scheduler gracefully.
+    Shut down the task scheduler and Kafka consumers gracefully.
     """
-    global scheduler
+    global scheduler, kafka_consumers
 
+    # Stop Kafka consumers
+    for name, consumer in kafka_consumers.items():
+        try:
+            logger.info(f"Stopping Kafka consumer: {name}")
+            consumer.stop()
+        except Exception as e:
+            logger.error(f"Error stopping Kafka consumer {name}: {e}")
+
+    kafka_consumers = {}
+
+    # Stop scheduler
     if scheduler is not None:
         scheduler.shutdown()
         scheduler = None
