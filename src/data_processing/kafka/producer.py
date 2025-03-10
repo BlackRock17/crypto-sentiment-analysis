@@ -259,3 +259,31 @@ class NotificationProducer(KafkaProducer):
             topic=TOPICS['SYSTEM_NOTIFICATIONS'],
             value=notification_data
         )
+
+
+class TokenMentionProducer(KafkaProducer):
+    """Producer specialized for token mentions."""
+
+    def __init__(self):
+        """Initialize token mention producer."""
+        super().__init__(client_id="token-mention-producer")
+
+    def send_token_mention(self, token_mention: Dict[str, Any]) -> bool:
+        """
+        Send a token mention to the token mentions topic.
+
+        Args:
+            token_mention: Token mention data
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Use token_id as key for partitioning if available
+        token_id = token_mention.get('token_data', {}).get('token_id', None)
+        key = str(token_id) if token_id else None
+
+        return self.send(
+            topic=TOPICS['TOKEN_MENTIONS'],
+            value=token_mention,
+            key=key
+        )
