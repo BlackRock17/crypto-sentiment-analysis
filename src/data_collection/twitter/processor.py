@@ -2,7 +2,7 @@
 Data processing module for Twitter data.
 Processes raw Twitter data and prepares it for storage in the database.
 """
-
+import json
 import re
 import logging
 from typing import List, Dict, Any, Optional, Set, Tuple, FrozenSet
@@ -126,7 +126,16 @@ class TwitterDataProcessor:
             token_info = self._process_token_symbol(symbol, detected_networks, text_lower)
 
             if token_info:
-                mentioned_tokens.add(tuple(sorted(token_info.items())))
+                # mentioned_tokens.add(tuple(sorted(token_info.items())))
+                serializable_items = []
+                for key, value in token_info.items():
+                    if isinstance(value, dict):
+                        # Convert nested dict to JSON string for hashing
+                        serializable_items.append((key, json.dumps(value, sort_keys=True)))
+                    else:
+                        serializable_items.append((key, value))
+
+                mentioned_tokens.add(tuple(sorted(serializable_items)))
 
         # Ensure we return a set of dictionaries with a consistent format
         result_set = set()
@@ -155,13 +164,20 @@ class TwitterDataProcessor:
 
         result_list = []
         for token_tuple in result_set:
-            if isinstance(token_tuple, (dict, frozenset)):
-                # Convert frozenset to dict if needed
-                if isinstance(token_tuple, frozenset):
-                    token_dict = dict(token_tuple)
-                else:
-                    token_dict = token_tuple
+            if isinstance(token_tuple, frozenset):
+                token_dict = {}
+                for key, value in token_tuple:
+                    if key == "context" and isinstance(value, str) and value.startswith("{"):
+                        # Try to decode JSON string back to dict
+                        try:
+                            token_dict[key] = json.loads(value)
+                        except:
+                            token_dict[key] = value
+                    else:
+                        token_dict[key] = value
                 result_list.append(token_dict)
+            else:
+                result_list.append(dict(token_tuple))
 
         # Convert back to a set of dictionaries when returning
         return result_list

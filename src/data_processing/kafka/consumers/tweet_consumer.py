@@ -98,7 +98,7 @@ class TweetConsumer(KafkaConsumer):
                     token_mentions = [token_mentions]
 
                 # Ensure each item is a dictionary
-                token_mentions = [item if isinstance(item, dict) else dict(item) for item in token_mentions if item]
+                token_mentions = [dict(token) if not isinstance(token, dict) else token for token in token_mentions if token]
 
                 # Process each token mention
                 mentions_count = 0

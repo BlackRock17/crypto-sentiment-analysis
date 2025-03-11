@@ -11,6 +11,7 @@ from src.data_processing.kafka.config import TOPICS
 from src.data_collection.twitter.repository import TwitterRepository
 from src.data_processing.database import get_db
 from src.data_processing.kafka.producer import SentimentProducer
+from src.data_processing.crud.read import get_tweet_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +63,22 @@ class TokenMentionConsumer(KafkaConsumer):
                     return False
 
                 # Find or create token and store the mention
+                # token_mentions = repository.store_token_mentions(
+                #     # Create a Tweet object with just the ID for reference
+                #     # The repository will use this ID to query the database
+                #     tweet=type('obj', (object,), {'id': tweet_id}),
+                #     token_data=[token_data]
+                # )
+
+                tweet = get_tweet_by_id(db, tweet_id)
+
+                if not tweet:
+                    logger.error(f"Tweet with ID {tweet_id} not found in database")
+                    return False
+
+                # Сега използвай реалния Tweet обект
                 token_mentions = repository.store_token_mentions(
-                    # Create a Tweet object with just the ID for reference
-                    # The repository will use this ID to query the database
-                    tweet=type('obj', (object,), {'id': tweet_id}),
+                    tweet=tweet,
                     token_data=[token_data]
                 )
 
