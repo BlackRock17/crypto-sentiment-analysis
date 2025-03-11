@@ -5,6 +5,7 @@ import json
 import logging
 import signal
 import time
+import threading
 from typing import Dict, Any, List, Callable, Optional, Union
 from threading import Thread, Event
 from confluent_kafka import Consumer, KafkaError, KafkaException, Message
@@ -160,13 +161,15 @@ class KafkaConsumer:
 
     def _setup_signal_handling(self):
         """Set up signal handling for graceful shutdown."""
+        if threading.current_thread() is threading.main_thread():
+            def signal_handler(sig, frame):
+                logger.info(f"Received signal {sig}, stopping consumer...")
+                self.stop()
 
-        def signal_handler(sig, frame):
-            logger.info(f"Received signal {sig}, stopping consumer...")
-            self.stop()
-
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
+        else:
+            logger.debug("Signal handling skipped: not in main thread")
 
     def start(self):
         """Start the consumer in a background thread."""

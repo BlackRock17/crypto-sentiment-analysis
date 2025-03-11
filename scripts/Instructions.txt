@@ -1,0 +1,14 @@
+# Тестване на Kafka интеграцията
+
+## Предварителни изисквания
+- Docker и Docker Compose инсталирани
+- Работеща локална Kafka инстанция (чрез docker-compose)
+- Python 3.8+ с инсталирани зависимости от requirements.txt
+
+## Стъпка 1: Стартиране на Kafka чрез Docker
+```bash
+# Стартиране на Kafka и Zookeeper
+docker-compose -f deployment/docker/docker-compose.kafka.yml up -d
+
+# Проверка дали контейнерите работят
+docker-compose -f deployment/docker/docker-compose.kafka.yml ps
