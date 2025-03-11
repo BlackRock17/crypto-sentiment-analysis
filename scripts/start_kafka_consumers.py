@@ -67,7 +67,11 @@ def stop_consumers():
         try:
             logger.info(f"Stopping consumer {i + 1}...")
             consumer.stop()
-            logger.info(f"Consumer {i + 1} stopped")
+            timeout = 5.0
+            start_time = time.time()
+            while consumer.is_running() and (time.time() - start_time) < timeout:
+                time.sleep(0.1)
+            logger.info(f"Consumer {i + 1} stopped" if not consumer.is_running() else f"Consumer {i + 1} stop timeout")
         except Exception as e:
             logger.error(f"Error stopping consumer {i + 1}: {e}")
 
