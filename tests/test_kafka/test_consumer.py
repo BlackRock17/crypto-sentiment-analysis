@@ -1,5 +1,3 @@
-# tests/test_kafka/test_consumer.py
-
 import unittest
 from unittest.mock import patch, MagicMock, call
 import json
