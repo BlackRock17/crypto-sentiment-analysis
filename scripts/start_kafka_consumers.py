@@ -8,6 +8,7 @@ from src.data_processing.kafka.consumers.tweet_consumer import TweetConsumer
 from src.data_processing.kafka.consumers.token_mention_consumer import TokenMentionConsumer
 from src.data_processing.kafka.consumers.sentiment_consumer import SentimentConsumer
 from src.data_processing.kafka.consumers.token_categorization_consumer import TokenCategorizationConsumer
+from src.data_processing.kafka.setup import ensure_all_topics_exist
 
 # Configure logging
 logging.basicConfig(
@@ -92,6 +93,11 @@ def main():
     # Set up signal handling
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+
+    logger.info("Checking and creating Kafka topics if needed...")
+    if not ensure_all_topics_exist():
+        logger.error("Failed to ensure Kafka topics exist. Exiting.")
+        return 1
 
     try:
         # Start consumers

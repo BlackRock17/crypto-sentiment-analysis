@@ -152,7 +152,7 @@ class TwitterDataProcessor:
             result_set.add(frozenset(token_dict.items()))
 
         # Convert back to a set of dictionaries when returning
-        return {dict(token_tuple) for token_tuple in result_set}
+        return [dict(item) for item in result_set] if isinstance(result_set, set) else list(result_set)
 
     def _process_token_symbol(self, symbol: str, detected_networks: Dict[str, float], text_context: str) -> Dict[
         str, Any]:
