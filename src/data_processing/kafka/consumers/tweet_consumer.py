@@ -88,10 +88,17 @@ class TweetConsumer(KafkaConsumer):
                     blockchain_networks
                 )
 
-                if isinstance(token_mentions, dict):
-                    token_mentions = [{"symbol": k, "blockchain_network": v} for k, v in token_mentions.items()]
+                if token_mentions is None:
+                    token_mentions = []
+                elif isinstance(token_mentions, dict):
+                    token_mentions = [token_mentions]
                 elif isinstance(token_mentions, set):
                     token_mentions = [dict(token_tuple) for token_tuple in token_mentions]
+                elif not isinstance(token_mentions, list):
+                    token_mentions = [token_mentions]
+
+                # Ensure each item is a dictionary
+                token_mentions = [item if isinstance(item, dict) else dict(item) for item in token_mentions if item]
 
                 # Process each token mention
                 mentions_count = 0
