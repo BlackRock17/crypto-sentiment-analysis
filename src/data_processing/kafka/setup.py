@@ -135,6 +135,54 @@ def create_topics(
     return False
 
 
+def ensure_all_topics_exist():
+    """
+    Check if all required topics exist and create any missing ones.
+    """
+    from src.data_processing.kafka.config import TOPICS, DEFAULT_BOOTSTRAP_SERVERS
+
+    # Create admin client
+    admin_client = AdminClient({'bootstrap.servers': DEFAULT_BOOTSTRAP_SERVERS})
+
+    # Get existing topics
+    existing_topics = admin_client.list_topics(timeout=10).topics
+    logger.info(f"Existing topics: {list(existing_topics.keys())}")
+
+    # Check each topic and create if missing
+    new_topics = []
+    for topic_name in TOPICS.values():
+        if topic_name not in existing_topics:
+            logger.info(f"Topic '{topic_name}' does not exist, will create it")
+            new_topics.append(
+                NewTopic(
+                    topic_name,
+                    num_partitions=3,
+                    replication_factor=1,
+                    config={
+                        "retention.ms": 604800000  # 7 days
+                    }
+                )
+            )
+
+    # Create missing topics
+    if new_topics:
+        logger.info(f"Creating {len(new_topics)} missing topics")
+        futures = admin_client.create_topics(new_topics)
+
+        # Wait for each topic to be created
+        for topic, future in futures.items():
+            try:
+                future.result()  # The result itself is None
+                logger.info(f"Topic {topic} created successfully")
+            except Exception as e:
+                logger.error(f"Failed to create topic {topic}: {e}")
+                return False
+    else:
+        logger.info("All required topics already exist")
+
+    return True
+
+
 if __name__ == "__main__":
     # Configure logging
     logging.basicConfig(
