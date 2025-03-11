@@ -5,7 +5,7 @@ Processes raw Twitter data and prepares it for storage in the database.
 
 import re
 import logging
-from typing import List, Dict, Any, Optional, Set, Tuple
+from typing import List, Dict, Any, Optional, Set, Tuple, FrozenSet
 from datetime import datetime
 
 from src.data_processing.models.database import Tweet, BlockchainToken, BlockchainNetwork
@@ -64,7 +64,9 @@ class TwitterDataProcessor:
         return results
 
     def extract_blockchain_tokens(self, tweet_text: str, known_tokens: List[BlockchainToken],
-                                  blockchain_networks: List[BlockchainNetwork] = None) -> Set[Dict[str, Any]]:
+                                  blockchain_networks: List[BlockchainNetwork] = None) -> list[
+        dict[str, None | float | dict[Any, Any] | dict[Any, Any] | Any] | frozenset[
+            tuple[str, None | float | dict[Any, Any] | Any]]]:
         """
         Extract mentions of blockchain tokens from tweet text.
 
@@ -151,8 +153,18 @@ class TwitterDataProcessor:
             # Convert dictionary to a frozenset of items to make it hashable for a set
             result_set.add(frozenset(token_dict.items()))
 
+        result_list = []
+        for token_tuple in result_set:
+            if isinstance(token_tuple, (dict, frozenset)):
+                # Convert frozenset to dict if needed
+                if isinstance(token_tuple, frozenset):
+                    token_dict = dict(token_tuple)
+                else:
+                    token_dict = token_tuple
+                result_list.append(token_dict)
+
         # Convert back to a set of dictionaries when returning
-        return [dict(item) for item in result_set] if isinstance(result_set, set) else list(result_set)
+        return result_list
 
     def _process_token_symbol(self, symbol: str, detected_networks: Dict[str, float], text_context: str) -> Dict[
         str, Any]:
