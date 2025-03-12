@@ -4,8 +4,8 @@ from typing import Dict, Any, Optional
 import logging
 from prometheus_client import start_http_server, Gauge, Counter, Histogram
 
-from monitoring.kafka import KafkaMonitor
 from src.data_processing.kafka.config import DEFAULT_BOOTSTRAP_SERVERS
+from src.monitoring import KafkaMonitor
 
 # Configure logger
 logger = logging.getLogger(__name__)

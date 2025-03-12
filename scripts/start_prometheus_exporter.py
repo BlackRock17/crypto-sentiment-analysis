@@ -4,7 +4,7 @@ import time
 import signal
 import sys
 
-from monitoring.kafka.prometheus_exporter import KafkaPrometheusExporter
+from src.monitoring.prometheus_exporter import KafkaPrometheusExporter
 from src.data_processing.kafka.config import DEFAULT_BOOTSTRAP_SERVERS
 
 # Configure logging

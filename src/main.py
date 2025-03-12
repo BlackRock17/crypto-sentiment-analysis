@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from monitoring.kafka.setup import setup_kafka_monitoring, shutdown_kafka_monitoring
+from src.monitoring.setup import setup_kafka_monitoring, shutdown_kafka_monitoring
 from src.api.auth import router as auth_router
 from src.api.twitter import router as twitter_router
 from src.middleware.rate_limiter import RateLimiter

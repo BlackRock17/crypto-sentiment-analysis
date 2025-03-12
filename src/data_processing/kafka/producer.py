@@ -4,11 +4,11 @@ Kafka producer implementation for sending messages to Kafka topics.
 import json
 import logging
 from datetime import time
-from typing import Dict, Any, Optional, Callable, Union
+from typing import Dict, Any, Optional, Callable
 from confluent_kafka import Producer, KafkaException
 
-from monitoring.kafka import KafkaLogger
 from src.data_processing.kafka.config import get_producer_config, TOPICS
+from src.monitoring import KafkaLogger
 
 logger = logging.getLogger(__name__)
 

@@ -2,13 +2,12 @@ import argparse
 import logging
 import time
 import json
-import os
 from datetime import datetime
 
 from pip._internal.utils.misc import tabulate
 
-from monitoring.kafka import KafkaMonitor
 from src.data_processing.kafka.config import DEFAULT_BOOTSTRAP_SERVERS
+from src.monitoring import KafkaMonitor
 
 # Configure logging
 logging.basicConfig(

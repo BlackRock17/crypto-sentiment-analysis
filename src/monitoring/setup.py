@@ -2,8 +2,9 @@ import logging
 import os
 from typing import Dict, Any, Optional
 
-from monitoring.kafka import KafkaAlertManager, KafkaMonitor
+
 from src.data_processing.kafka.config import DEFAULT_BOOTSTRAP_SERVERS
+from src.monitoring import KafkaAlertManager, KafkaMonitor
 
 # Configure logger
 logger = logging.getLogger(__name__)

@@ -6,12 +6,12 @@ import logging
 import signal
 import time
 import threading
-from typing import Dict, Any, List, Callable, Optional, Union
+from typing import Dict, Any, List, Union
 from threading import Thread, Event
 from confluent_kafka import Consumer, KafkaError, KafkaException, Message
 
-from monitoring.kafka import KafkaLogger
-from src.data_processing.kafka.config import get_consumer_config, TOPICS
+from src.data_processing.kafka.config import get_consumer_config
+from src.monitoring import KafkaLogger
 
 logger = logging.getLogger(__name__)
 
