@@ -3,9 +3,11 @@ Kafka producer implementation for sending messages to Kafka topics.
 """
 import json
 import logging
+from datetime import time
 from typing import Dict, Any, Optional, Callable, Union
 from confluent_kafka import Producer, KafkaException
 
+from monitoring.kafka import KafkaLogger
 from src.data_processing.kafka.config import get_producer_config, TOPICS
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,7 @@ class KafkaProducer:
         """
         config = get_producer_config(client_id, **(config_overrides or {}))
         self.producer = Producer(config)
+        self.kafka_logger = KafkaLogger(client_id or "default-producer")
         logger.info(f"Initialized Kafka producer with client_id: {client_id or 'default'}")
 
     def delivery_callback(self, err, msg):
@@ -81,6 +84,7 @@ class KafkaProducer:
         Returns:
             True if the message was queued successfully, False otherwise
         """
+        start_time = time.time()
         try:
             # Serialize the message
             serialized_value = self.serialize_message(value)
@@ -103,10 +107,32 @@ class KafkaProducer:
             # Serve delivery callbacks from previous produce calls
             self.producer.poll(0)
 
+            # Calculate message size if possible
+            message_size = len(serialized_value) if isinstance(serialized_value, bytes) else None
+
+            # Log success
+            duration_ms = (time.time() - start_time) * 1000
+            self.kafka_logger.log_producer_event(
+                topic=topic,
+                event_type="send",
+                message_key=key,
+                message_size=message_size,
+                duration_ms=duration_ms
+            )
+
             return True
 
         except (ValueError, KafkaException) as e:
             logger.error(f"Error sending message to topic {topic}: {e}")
+            duration_ms = (time.time() - start_time) * 1000
+            self.kafka_logger.log_producer_event(
+                topic=topic,
+                event_type="error",
+                message_key=key,
+                message_size=message_size,
+                duration_ms=duration_ms,
+                error=e
+            )
             return False
 
     def flush(self, timeout: float = 10.0) -> int:
