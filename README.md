@@ -51,7 +51,9 @@ crypto_sentiment/
 │   ├── api/
 │   │   ├── __init__.py
 │   │   ├── auth.py
-│   │   └── twitter.py
+│   │   ├── twitter.py
+│   │   ├── notifications.py
+│   │   └── utils.py
 │   ├── data_collection/
 │   │   ├── __init__.py
 │   │   ├── tasks/
@@ -67,6 +69,18 @@ crypto_sentiment/
 │   ├── data_processing/
 │   │   ├── __init__.py
 │   │   ├── database.py
+│   │   ├── kafka/
+│   │   │   ├── __init__.py
+│   │   │   ├── config.py
+│   │   │   ├── consumer.py
+│   │   │   ├── producer.py
+│   │   │   ├── setup.py
+│   │   │   └── consumers/
+│   │   │       ├── __init__.py
+│   │   │       ├── tweet_consumer.py
+│   │   │       ├── token_mention_consumer.py
+│   │   │       ├── sentiment_consumer.py
+│   │   │       └── token_categorization_consumer.py
 │   │   ├── crud/
 │   │   │   ├── __init__.py
 │   │   │   ├── create.py
@@ -75,12 +89,15 @@ crypto_sentiment/
 │   │   │   ├── delete.py
 │   │   │   ├── core_queries.py
 │   │   │   ├── auth.py
-│   │   │   └── twitter.py
+│   │   │   ├── twitter.py
+│   │   │   ├── token_categorization.py
+│   │   │   └── notifications.py
 │   │   └── models/
 │   │       ├── __init__.py
 │   │       ├── database.py
 │   │       ├── auth.py
-│   │       └── twitter.py
+│   │       ├── twitter.py
+│   │       └── notifications.py
 │   ├── exceptions.py
 │   ├── middleware/
 │   │   ├── __init__.py
@@ -88,7 +105,8 @@ crypto_sentiment/
 │   ├── schemas/
 │   │   ├── __init__.py
 │   │   ├── auth.py
-│   │   └── twitter.py
+│   │   ├── twitter.py
+│   │   └── notifications.py
 │   ├── security/
 │   │   ├── __init__.py
 │   │   ├── auth.py
@@ -99,13 +117,23 @@ crypto_sentiment/
 │   ├── analysis/
 │   ├── ml_models/
 │   └── visualization/
+├── scripts/
+│   ├── check_kafka_connection.py
+│   ├── create_kafka_topics.py
+│   ├── start_kafka_consumers.py
+│   ├── test_kafka_pipeline.py
+│   ├── monitor_kafka.py
+│   └── start_prometheus_exporter.py
+├── logs/
+│   └── kafka_metrics/
 ├── monitoring/
 │   ├── prometheus/
 │   └── grafana/
 ├── deployment/
 │   ├── docker/
 │   │   ├── Dockerfile
-│   │   └── docker-compose.yml
+│   │   ├── docker-compose.yml
+│   │   └── docker-compose.kafka.yml
 │   └── kubernetes/
 ├── tests/
 │   ├── __init__.py
@@ -133,6 +161,13 @@ crypto_sentiment/
 │   │   ├── test_twitter_models.py
 │   │   ├── test_twitter_api.py
 │   │   └── test_twitter_collection.py
+│   ├── test_kafka/
+│   │   ├── __init__.py
+│   │   ├── test_producer.py
+│   │   ├── test_consumer.py
+│   │   ├── test_tweet_consumer.py
+│   │   ├── test_integration.py
+│   │   └── test_end_to_end.py
 │   ├── test_database.py
 │   └── test_scheduler.py
 ├── requirements.txt
@@ -149,7 +184,7 @@ crypto_sentiment/
 3. Basic configuration ✓
 4. GitHub repository setup ✓
 
-### Phase 2: Data Infrastructure and Streaming (Current Phase)
+### Phase 2: Data Infrastructure and Streaming (Completed) ✓
 1. Database Implementation (Completed) ✓
    - Schema design with multi-blockchain support ✓
    - SQLAlchemy models with blockchain network integration ✓
@@ -203,10 +238,30 @@ crypto_sentiment/
    - Manual review interface for uncategorized tokens ✓
    - Token deduplication and merging functionality ✓
    - Network confidence scoring system ✓
-5. Kafka Integration (Next Step)
-   - Kafka cluster setup
-   - Producer/Consumer implementation
-   - Stream processing pipeline
+5. Kafka Integration (Completed) ✓
+   - Kafka cluster setup with Docker Compose ✓
+   - Producer/Consumer implementation ✓
+     * Base Kafka producer with error handling and serialization ✓
+     * Base Kafka consumer with manual offset management ✓
+     * Specialized producers for different types of data ✓
+     * Specialized consumers for different processing stages ✓
+   - Stream processing pipeline ✓
+     * Raw tweets flow from collection to processing ✓
+     * Token mention extraction and processing ✓
+     * Sentiment analysis pipeline ✓
+     * Token categorization tasks ✓
+   - Integration with existing components ✓
+     * Modified Twitter service to use Kafka producers ✓
+     * Added background consumers for processing ✓
+     * Updated scheduler to manage Kafka consumers ✓
+   - Error handling and resilience ✓
+     * Retry mechanisms for failed processing ✓
+     * Dead-letter queues for unprocessable messages ✓
+     * Proper error logging and monitoring ✓
+   - Testing framework for Kafka components ✓
+     * Unit tests for producers and consumers ✓
+     * Integration tests for Kafka communication ✓
+     * End-to-end tests for complete data flow ✓
 
 ### Phase 3: Data Processing and ML Pipeline
 1. Apache Airflow Setup
@@ -325,14 +380,76 @@ crypto_sentiment/
   * Token categorization logic implemented ✓
   * Network detection algorithms created ✓
   * Admin interfaces for token review implemented ✓
+  * Token deduplication and merging functionality implemented ✓
+- Kafka Integration:
+  * Docker Compose setup for Kafka and Zookeeper ✓
+  * Kafka topic creation and management ✓
+  * Base producer and consumer classes implementation ✓
+  * Specialized producers for tweets, token mentions, etc. ✓
+  * Specialized consumers for different processing stages ✓
+  * Twitter service modified to use Kafka ✓
+  * Scheduler integration with Kafka consumers ✓
+  * Error handling and resilience mechanisms ✓
+  * Comprehensive testing for Kafka components ✓
+  * Scripts for Kafka management and monitoring ✓
 
 ## Next Steps
-1. Kafka Integration
-   - Set up Kafka cluster for streaming data
-   - Implement producers and consumers for tweet data
-   - Create stream processing pipeline for real-time analysis
-   - Add monitoring for Kafka components
-   - Implement fault tolerance and error handling
+1. Complete ML Pipeline Implementation
+   - Set up Apache Airflow for workflow orchestration
+   - Integrate BERT/Transformer models for sentiment analysis
+   - Develop cross-network correlation analysis
+   - Implement predictive analytics for trend identification
+
+2. Set Up Comprehensive Monitoring
+   - Configure ELK Stack for centralized logging
+   - Set up Prometheus for metrics collection
+   - Implement alerting system for issues detection
+   - Create Grafana dashboards for visualization
+
+3. Enhanced Deployment Configuration
+   - Finalize Kubernetes configuration
+   - Set up CI/CD pipeline with GitHub Actions
+   - Configure cloud infrastructure with auto-scaling
+   - Implement high availability and disaster recovery
+
+## Kafka Infrastructure Details
+
+### Kafka Topic Structure
+The project uses the following Kafka topics:
+
+1. `twitter-raw-tweets`: Raw tweets collected from Twitter API
+2. `token-mentions`: Extracted token mentions from tweets
+3. `sentiment-results`: Results of sentiment analysis
+4. `token-categorization-tasks`: Tasks for token categorization
+5. `system-notifications`: System notifications for administrators
+
+### Data Flow
+The data flows through the Kafka pipeline as follows:
+
+1. Twitter collection service sends raw tweets to `twitter-raw-tweets` topic
+2. Tweet consumer processes tweets and extracts token mentions
+3. Token mentions are sent to `token-mentions` topic
+4. Token mention consumer processes mentions and sends them for sentiment analysis
+5. Sentiment results are stored in the database and sent to `sentiment-results` topic
+6. Token categorization tasks are sent to `token-categorization-tasks` topic
+7. Token categorization consumer processes tasks and updates token information
+
+### Error Handling
+The Kafka implementation includes robust error handling:
+
+- Retry mechanisms for temporary failures
+- Dead-letter queues for unprocessable messages
+- Comprehensive logging for debugging
+- Manual offset management to prevent message loss
+
+### Monitoring and Management
+Scripts and tools for Kafka monitoring and management:
+
+- `check_kafka_connection.py`: Test Kafka connectivity
+- `create_kafka_topics.py`: Create required Kafka topics
+- `start_kafka_consumers.py`: Start Kafka consumers
+- `test_kafka_pipeline.py`: Test the Kafka pipeline with sample data
+- `monitor_kafka.py`: Monitor Kafka metrics
 
 ## Advanced Features Details
 
