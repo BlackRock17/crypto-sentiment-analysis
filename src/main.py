@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from monitoring.kafka.setup import setup_kafka_monitoring, shutdown_kafka_monitoring
 from src.api.auth import router as auth_router
 from src.api.twitter import router as twitter_router
 from src.middleware.rate_limiter import RateLimiter
@@ -24,6 +25,11 @@ async def lifespan(app: FastAPI):
             app.logger.info("Kafka topics created successfully")
         else:
             app.logger.warning("Failed to create Kafka topics - services may not function correctly")
+
+        # Set up Kafka monitoring
+        monitoring = setup_kafka_monitoring()
+        app.state.kafka_monitoring = monitoring
+
     except Exception as e:
         app.logger.error(f"Error creating Kafka topics: {e}")
 
@@ -34,6 +40,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: Stop scheduler
     shutdown_scheduler()
+    shutdown_kafka_monitoring()
 
 
 # Create FastAPI application
