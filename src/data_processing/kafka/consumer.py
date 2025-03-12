@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Callable, Optional, Union
 from threading import Thread, Event
 from confluent_kafka import Consumer, KafkaError, KafkaException, Message
 
+from monitoring.kafka import KafkaLogger
 from src.data_processing.kafka.config import get_consumer_config, TOPICS
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,8 @@ class KafkaConsumer:
         # Control flags
         self._stop_event = Event()
         self._consumer_thread = None
+
+        self.kafka_logger = KafkaLogger(group_id or "default-consumer")
 
         logger.info(f"Initialized Kafka consumer for topics {self.topics}, group_id: {group_id}")
 
@@ -92,6 +95,7 @@ class KafkaConsumer:
         Returns:
             True if the message was processed successfully, False otherwise
         """
+        start_time = time.time()
         # Default implementation just logs the message
         try:
             # Get message details
@@ -100,16 +104,47 @@ class KafkaConsumer:
             offset = message.offset()
             timestamp = message.timestamp()
 
+            self.kafka_logger.log_consumer_event(
+                topic=topic,
+                event_type="receive",
+                group_id=self.consumer.get("group.id", "unknown"),
+                partition=partition,
+                offset=offset
+            )
+
             # Deserialize value
             value = self.deserialize_message(message)
 
             logger.debug(f"Received message from {topic} [{partition}] at offset {offset}")
+
+            # Log processing time
+            processing_time_ms = (time.time() - start_time) * 1000
+            self.kafka_logger.log_consumer_event(
+                topic=topic,
+                event_type="processed",
+                group_id=self.consumer.get("group.id", "unknown"),
+                partition=partition,
+                offset=offset,
+                processing_time_ms=processing_time_ms
+            )
 
             # This method should be overridden by subclasses
             return True
 
         except Exception as e:
             logger.error(f"Error handling message: {e}")
+
+            processing_time_ms = (time.time() - start_time) * 1000
+            self.kafka_logger.log_consumer_event(
+                topic=topic if 'topic' in locals() else "unknown",
+                event_type="error",
+                group_id=self.consumer.get("group.id", "unknown"),
+                partition=partition if 'partition' in locals() else None,
+                offset=offset if 'offset' in locals() else None,
+                processing_time_ms=processing_time_ms,
+                error=e
+            )
+
             return False
 
     def _consume_loop(self):
