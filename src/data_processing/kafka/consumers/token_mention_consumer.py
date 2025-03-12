@@ -68,7 +68,6 @@ class TokenMentionConsumer(KafkaConsumer):
                     logger.error(f"Tweet with ID {tweet_id} not found in database")
                     return False
 
-                # Сега използвай реалния Tweet обект
                 token_mentions = repository.store_token_mentions(
                     tweet=tweet,
                     token_data=[token_data]
