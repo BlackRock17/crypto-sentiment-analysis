@@ -62,14 +62,6 @@ class TokenMentionConsumer(KafkaConsumer):
                     logger.error("Missing required data in token mention message")
                     return False
 
-                # Find or create token and store the mention
-                # token_mentions = repository.store_token_mentions(
-                #     # Create a Tweet object with just the ID for reference
-                #     # The repository will use this ID to query the database
-                #     tweet=type('obj', (object,), {'id': tweet_id}),
-                #     token_data=[token_data]
-                # )
-
                 tweet = get_tweet_by_id(db, tweet_id)
 
                 if not tweet:
