@@ -1,34 +1,45 @@
 version: '3.8'
 
 services:
-  api:
+  app:
     build:
-      context: ../../
+      context: ../..
       dockerfile: deployment/docker/Dockerfile
     ports:
       - "8000:8000"
-    volumes:
-      - ../../:/app
     depends_on:
-      - db
+      - postgres
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/solana_sentiment
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-supersecretkey}
-      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
-      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
-    restart: always
-
-  db:
-    image: postgres:14
+      - DATABASE_URL=postgresql://username:password@postgres:5432/crypto_sentiment
+      - TWITTER_API_KEY=${TWITTER_API_KEY}
+      - TWITTER_API_SECRET=${TWITTER_API_SECRET}
+      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
+      - TWITTER_ACCESS_TOKEN_SECRET=${TWITTER_ACCESS_TOKEN_SECRET}
     volumes:
-      - postgres_data:/var/lib/postgresql/data/
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=solana_sentiment
+      - ../../src:/app/src
+      - ../../config:/app/config
+    networks:
+      - crypto-network
+      - kafka-network
+
+  postgres:
+    image: postgres:13
     ports:
       - "5432:5432"
-    restart: always
+    environment:
+      - POSTGRES_USER=username
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=crypto_sentiment
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - crypto-network
+
+networks:
+  crypto-network:
+    driver: bridge
+  kafka-network:
+    external: true
 
 volumes:
-  postgres_data:
+  postgres-data:
