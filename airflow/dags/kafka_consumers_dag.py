@@ -11,16 +11,19 @@ import json
 import os
 from datetime import datetime, timedelta
 
-from airflow import DAG
+from airflow.models.dag import DAG
 from airflow.operators.python import PythonOperator
-from airflow.operators.bash import BashOperator
-from airflow.utils.dates import days_ago
+
+# from airflow import DAG
+# from airflow.operators.python import PythonOperator
+# from airflow.operators.bash import BashOperator
+# from airflow.utils.dates import days_ago
 
 # Add the project root to the Python path
 sys.path.append("/opt/airflow")
 
 # Import project modules
-from plugins.crypto_utils import DEFAULT_ARGS, task_failure_callback, send_notification
+from airflow.plugins.crypto_utils import DEFAULT_ARGS, task_failure_callback, send_notification
 
 # Configure logging
 logger = logging.getLogger(__name__)
