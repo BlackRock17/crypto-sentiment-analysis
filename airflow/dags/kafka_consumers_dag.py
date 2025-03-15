@@ -301,9 +301,6 @@ def restart_all_consumers(**kwargs):
     logger.info("Restarting all Kafka consumers")
 
     consumer_types = ['tweet', 'token_mention', 'sentiment', 'token_categorization']
-    ', '
-    token_categorization
-    ']
     results = {}
 
     # Stop all consumers
@@ -370,4 +367,46 @@ def ensure_all_consumers_running(**kwargs):
     """
     logger.info("Ensuring all Kafka consumers are running")
 
-    consumer_types = ['tweet', 'token_mention', 'sentiment
+    consumer_types = ['tweet', 'token_mention', 'sentiment', 'token_categorization']
+    results = {}
+
+    for consumer_type in consumer_types:
+        results[consumer_type] = ensure_consumer_running(consumer_type)
+
+    # Create summary
+    success_count = sum(1 for result in results.values() if result.get('status') in ['running', 'started'])
+
+    logger.info(f"{success_count} out of {len(consumer_types)} consumers are now running")
+
+    return {
+        'summary': {
+            'total': len(consumer_types),
+            'running': success_count,
+            'failed': len(consumer_types) - success_count
+        },
+        'consumers': results
+    }
+
+
+# Define tasks
+check_all_task = PythonOperator(
+    task_id='check_all_consumers',
+    python_callable=check_all_consumers,
+    dag=dag,
+)
+
+ensure_all_task = PythonOperator(
+    task_id='ensure_all_consumers_running',
+    python_callable=ensure_all_consumers_running,
+    dag=dag,
+)
+
+restart_all_task = PythonOperator(
+    task_id='restart_all_consumers',
+    python_callable=restart_all_consumers,
+    trigger_rule='none_failed',
+    dag=dag,
+)
+
+# Define task dependencies
+check_all_task >> ensure_all_task
