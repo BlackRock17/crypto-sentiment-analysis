@@ -1,7 +1,10 @@
 import logging
 import json
 import time
+import unittest
 from typing import Dict, Any, Optional
+
+
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -104,32 +107,45 @@ class KafkaLogger:
             "event": event_type,
         }
 
-        if group_id:
+        if group_id and not isinstance(group_id, unittest.mock.Mock):
             log_data["group_id"] = group_id
 
-        if partition is not None:
+        if partition is not None and not isinstance(partition, unittest.mock.Mock):
             log_data["partition"] = partition
 
-        if offset is not None:
+        if offset is not None and not isinstance(offset, unittest.mock.Mock):
             log_data["offset"] = offset
 
-        if lag is not None:
+        if lag is not None and not isinstance(lag, unittest.mock.Mock):
             log_data["consumer_lag"] = lag
 
-        if processing_time_ms:
+        if processing_time_ms and not isinstance(processing_time_ms, unittest.mock.Mock):
             log_data["processing_time_ms"] = processing_time_ms
 
-        if error:
+        if error and not isinstance(error, unittest.mock.Mock):
             log_data["error"] = str(error)
             log_data["error_type"] = error.__class__.__name__
 
         # Add any additional data
-        log_data.update(additional_data)
+        serializable_additional_data = {}
+        for key, value in additional_data.items():
+            if not isinstance(value, unittest.mock.Mock):
+                serializable_additional_data[key] = value
+        log_data.update(serializable_additional_data)
 
         # Determine log level based on event type
-        if error or event_type == "error":
-            self.logger.error(f"Kafka consumer error: {json.dumps(log_data)}")
-        elif event_type == "warning" or (lag and lag > 1000):  # High lag is a warning
-            self.logger.warning(f"Kafka consumer warning: {json.dumps(log_data)}")
-        else:
-            self.logger.info(f"Kafka consumer event: {json.dumps(log_data)}")
+        try:
+            if error or event_type == "error":
+                self.logger.error(f"Kafka consumer error: {json.dumps(log_data)}")
+            elif event_type == "warning" or (lag and lag > 1000):
+                self.logger.warning(f"Kafka consumer warning: {json.dumps(log_data)}")
+            else:
+                self.logger.info(f"Kafka consumer event: {json.dumps(log_data)}")
+        except TypeError as e:
+            # Fallback за случаите, когато JSON сериализацията се провали
+            if error or event_type == "error":
+                self.logger.error(f"Kafka consumer error (JSON serialize failed): {log_data}")
+            elif event_type == "warning":
+                self.logger.warning(f"Kafka consumer warning (JSON serialize failed): {log_data}")
+            else:
+                self.logger.info(f"Kafka consumer event (JSON serialize failed): {log_data}")

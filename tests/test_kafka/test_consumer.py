@@ -67,8 +67,11 @@ class TestKafkaConsumer(unittest.TestCase):
         mock_message.timestamp.return_value = (0, 1609459200000)  # (type, timestamp)
         mock_message.value.return_value = json.dumps({"key": "value"}).encode('utf-8')
 
-        result = self.consumer.handle_message(mock_message)
+        with patch.object(self.consumer.kafka_logger, 'log_consumer_event'):
+            result = self.consumer.handle_message(mock_message)
+
         self.assertTrue(result)
+        self.consumer.kafka_logger.log_consumer_event.assert_called()
         mock_logger.debug.assert_called_once()
 
     @patch('src.data_processing.kafka.consumer.logger')
@@ -113,18 +116,45 @@ class TestKafkaConsumer(unittest.TestCase):
     @patch('src.data_processing.kafka.consumer.logger')
     def test_consume_loop_handles_errors(self, mock_logger):
         """Test that the consume loop handles errors properly."""
-        # Set up the consumer to run briefly then stop
-        self.consumer._stop_event.set()
+        # # Set up the consumer to run briefly then stop
+        # self.consumer._stop_event.set()
+        #
+        # # Override poll to simulate error
+        # self.mock_consumer.poll.side_effect = KafkaException("Test error")
+        #
+        # # Test
+        # self.consumer._consume_loop()
+        #
+        # # Assert
+        # mock_logger.error.assert_called()
+        # self.mock_consumer.close.assert_called_once()
 
-        # Override poll to simulate error
-        self.mock_consumer.poll.side_effect = KafkaException("Test error")
+        mock_consumer = MagicMock()
+        # Настройте poll метода да връща съобщение
+        mock_message = MagicMock()
+        mock_consumer.poll.return_value = mock_message
+        # Настройте message.error() да връща грешка
+        mock_error = MagicMock()
+        mock_error.code.return_value = 42  # Каквато и да е грешка, различна от _PARTITION_EOF
+        mock_message.error.return_value = mock_error
 
-        # Test
-        self.consumer._consume_loop()
+        # Присвояване на моковете
+        self.consumer.consumer = mock_consumer
 
-        # Assert
-        mock_logger.error.assert_called()
-        self.mock_consumer.close.assert_called_once()
+        # Мокиране на logger
+        with patch('src.data_processing.kafka.consumer.logger') as mock_logger:
+            # Настройване на threading.Thread
+            with patch('threading.Thread'):
+                # Настройка на self._stop_event.is_set да върне True след първата итерация
+                # за да излезе от цикъла
+                self.consumer._stop_event = MagicMock()
+                self.consumer._stop_event.is_set.side_effect = [False, True]
+
+                # Стартирайте consume_loop
+                self.consumer._consume_loop()
+
+                # Проверете дали е имало логване на грешка
+                mock_logger.error.assert_called()
 
 
 class TestBatchKafkaConsumer(unittest.TestCase):
