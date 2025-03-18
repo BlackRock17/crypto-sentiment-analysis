@@ -17,10 +17,12 @@ class TestTweetConsumer(unittest.TestCase):
         self.mock_token_producer = mock_token_producer.return_value
         self.consumer = TweetConsumer()
 
+    @patch('src.data_processing.crud.twitter.create_influencer_tweet')
     @patch('src.data_processing.kafka.consumers.tweet_consumer.get_db')
     @patch('src.data_processing.kafka.consumers.tweet_consumer.TwitterRepository')
     @patch('src.data_processing.kafka.consumers.tweet_consumer.TwitterDataProcessor')
-    def test_handle_message_success(self, mock_processor_class, mock_repo_class, mock_get_db):
+    def test_handle_message_success(self, mock_processor_class, mock_repo_class, mock_get_db,
+                                    mock_create_influencer_tweet):
         """Test successful handling of a tweet message."""
         # Mock database session
         mock_db = MagicMock()
@@ -75,8 +77,12 @@ class TestTweetConsumer(unittest.TestCase):
         self.mock_token_producer.send_token_mention.assert_called_once()
 
         # Verify the link between influencer and tweet was created
-        from src.data_processing.crud.twitter import create_influencer_tweet
-        self.assertTrue(create_influencer_tweet.called)
+        mock_create_influencer_tweet.assert_called_once_with(
+            db=mock_db,
+            influencer_id=1,
+            tweet_id=123,
+            is_manually_added=False
+        )
 
     @patch('src.data_processing.kafka.consumers.tweet_consumer.get_db')
     @patch('src.data_processing.kafka.consumers.tweet_consumer.logger')

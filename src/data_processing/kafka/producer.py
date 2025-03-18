@@ -4,7 +4,7 @@ Kafka producer implementation for sending messages to Kafka topics.
 import json
 import logging
 import time
-# from datetime import time
+import datetime
 from typing import Dict, Any, Optional, Callable
 from confluent_kafka import Producer, KafkaException
 
@@ -170,7 +170,7 @@ class TwitterProducer(KafkaProducer):
         """
         # Add timestamp if not present
         if 'timestamp' not in tweet_data:
-            import datetime
+            # Използваме глобално импортирания datetime модул
             tweet_data['timestamp'] = datetime.datetime.now().isoformat()
 
         # Use tweet_id as the message key if available for partitioning
@@ -247,8 +247,6 @@ class TokenCategoryProducer(KafkaProducer):
         Returns:
             True if successful, False otherwise
         """
-        import datetime
-
         task_data = {
             'token_id': token_id,
             'priority': priority,

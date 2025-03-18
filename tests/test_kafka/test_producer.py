@@ -114,6 +114,7 @@ class TestTwitterProducer(unittest.TestCase):
         self.assertEqual(kwargs['topic'], 'twitter-raw-tweets')
         self.assertEqual(kwargs['key'], '12345')
 
+    # @patch('src.data_processing.kafka.producer.datetime')
     @patch('src.data_processing.kafka.producer.datetime')
     @patch('src.data_processing.kafka.producer.KafkaProducer.send')
     def test_send_tweet_adds_timestamp(self, mock_send, mock_datetime):
