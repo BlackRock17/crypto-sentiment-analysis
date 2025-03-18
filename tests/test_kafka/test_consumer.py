@@ -67,12 +67,14 @@ class TestKafkaConsumer(unittest.TestCase):
         mock_message.timestamp.return_value = (0, 1609459200000)  # (type, timestamp)
         mock_message.value.return_value = json.dumps({"key": "value"}).encode('utf-8')
 
-        with patch.object(self.consumer.kafka_logger, 'log_consumer_event'):
+        # Правилният патч за kafka_logger
+        with patch.object(self.consumer, 'kafka_logger') as mock_kafka_logger:
             result = self.consumer.handle_message(mock_message)
 
-        self.assertTrue(result)
-        self.consumer.kafka_logger.log_consumer_event.assert_called()
-        mock_logger.debug.assert_called_once()
+            # Проверка
+            self.assertTrue(result)
+            mock_kafka_logger.log_consumer_event.assert_called()
+            mock_logger.debug.assert_called_once()
 
     @patch('src.data_processing.kafka.consumer.logger')
     def test_handle_message_error(self, mock_logger):

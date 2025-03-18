@@ -86,6 +86,8 @@ class KafkaProducer:
             True if the message was queued successfully, False otherwise
         """
         start_time = time.time()
+        message_size = None
+
         try:
             # Serialize the message
             serialized_value = self.serialize_message(value)
