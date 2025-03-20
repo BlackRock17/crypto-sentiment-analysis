@@ -6,15 +6,18 @@ services:
     environment:
       - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - PYTHONPATH=/opt/airflow:/opt/airflow/src
     ports:
       - "8080:8080"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
+      - ./config:/opt/airflow/config
     command: >
-      bash -c "pip uninstall -y apache-airflow-providers-openlineage &&
-              pip install 'apache-airflow-providers-openlineage>=1.8.0' confluent-kafka apache-airflow-providers-apache-kafka &&
-              airflow standalone"
+      bash -c "pip install confluent-kafka sqlalchemy psycopg2-binary python-dotenv pydantic &&
+              echo 'Инсталирани необходими пакети' &&
+              ls -la /opt/airflow/src &&
+              PYTHONPATH=/opt/airflow airflow standalone"
     networks:
       - default
       - docker_kafka-network

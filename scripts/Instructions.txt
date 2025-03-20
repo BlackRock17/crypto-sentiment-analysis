@@ -47,6 +47,8 @@ KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_consumer.py
 
 
 Airflow is ready
+docker-compose -f docker-compose-airflow.yml down
+docker-compose -f docker-compose-airflow.yml up
 standalone | Login with username: admin  password: zh3H6pXzfdQaBVdG
 Airflow Standalone is for development purposes only. Do not use this in production!
 
@@ -55,3 +57,4 @@ KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_integration.py
 
 # Изпълнение на end-to-end тестовете
 KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_end_to_end.py
+
