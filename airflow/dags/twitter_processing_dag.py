@@ -100,21 +100,24 @@ def process_tweets(**kwargs):
         from confluent_kafka import Consumer, KafkaError
         from src.data_processing.kafka.config import TOPICS
 
-        # Опитваме да се свържем с Kafka и да проверим топиците
+        # Проверка на връзката с Kafka
         try:
             from confluent_kafka.admin import AdminClient
-            admin = AdminClient({'bootstrap.servers': 'kafka:9092'})
-            metadata = admin.list_topics(timeout=5)
-            logger.info(f"Налични Kafka топици: {list(metadata.topics.keys())}")
+            admin = AdminClient({'bootstrap.servers': 'localhost:9092'})  # Променен адрес
+            metadata = admin.list_topics(timeout=10)
+            logger.info(f"Успешна връзка с Kafka! Налични топици: {list(metadata.topics.keys())}")
         except Exception as e:
-            logger.warning(f"Не може да се провери Kafka: {e}")
+            logger.error(f"Грешка при свързване с Kafka: {e}")
+            raise
 
-        # Конфигурация на консуматора
+        # Конфигурация на консуматора с повече детайли
         config = {
-            'bootstrap.servers': 'kafka:9092',
+            'bootstrap.servers': 'localhost:9092',  # Променен адрес
             'group.id': 'airflow-twitter-processor',
-            'auto.offset.reset': 'earliest',  # Променено на earliest, за да четем и по-стари съобщения
+            'auto.offset.reset': 'earliest',
             'enable.auto.commit': True,
+            'session.timeout.ms': 30000,  # По-висок таймаут
+            'request.timeout.ms': 30000,  # По-висок таймаут
         }
 
         logger.info(f"Ще четем от топик: {TOPICS['RAW_TWEETS']}")
@@ -122,6 +125,7 @@ def process_tweets(**kwargs):
 
         # Създаване на консуматор
         consumer = Consumer(config)
+        logger.info("Свързан успешно с Kafka брокера, ще търся съобщения в топик: %s", TOPICS['RAW_TWEETS'])
 
         # Абониране за топика с туитове
         consumer.subscribe([TOPICS['RAW_TWEETS']])
@@ -136,7 +140,7 @@ def process_tweets(**kwargs):
         logger.info(f"Започваме да четем съобщения в рамките на {timeout.seconds} секунди")
 
         while datetime.now() - start_time < timeout:
-            msg = consumer.poll(timeout=5.0)
+            msg = consumer.poll(timeout=10.0)
 
             if msg is None:
                 logger.debug("Няма съобщения, продължаваме да чакаме...")
@@ -149,8 +153,18 @@ def process_tweets(**kwargs):
                     logger.error(f"Грешка при четене: {msg.error()}")
             else:
                 # Декодиране и обработка на съобщението
+                logger.info("Получено съобщение от Kafka: %s", msg.value().decode('utf-8')[:100] + "...")
                 try:
                     tweet_data = json.loads(msg.value().decode('utf-8'))
+
+                    if 'created_at' in tweet_data and isinstance(tweet_data['created_at'], str):
+                        try:
+                            from datetime import datetime
+                            tweet_data['created_at'] = datetime.fromisoformat(
+                                tweet_data['created_at'].replace('Z', '+00:00'))
+                        except ValueError:
+                            # Игнорирайте грешки при parse-ване на датата
+                            pass
 
                     # За целите на демонстрацията ще извлечем само основна информация
                     processed_tweet = {
