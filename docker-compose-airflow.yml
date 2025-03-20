@@ -1,0 +1,26 @@
+version: '3'
+services:
+  airflow:
+    image: apache/airflow:2.7.1-python3.11
+    restart: always
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+    command: >
+      bash -c "pip uninstall -y apache-airflow-providers-openlineage &&
+              pip install 'apache-airflow-providers-openlineage>=1.8.0' confluent-kafka apache-airflow-providers-apache-kafka &&
+              airflow standalone"
+    networks:
+      - default
+      - docker_kafka-network
+
+networks:
+  default:
+    driver: bridge
+  docker_kafka-network:
+    external: true

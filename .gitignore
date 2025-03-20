@@ -36,3 +36,10 @@ ENV/
 
 # Database
 *.sqlite3
+
+# Airflow
+airflow/*.db
+airflow/logs/
+airflow/airflow.cfg
+airflow/webserver_config.py
+airflow/*.pid

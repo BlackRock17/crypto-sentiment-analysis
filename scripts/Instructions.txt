@@ -45,6 +45,11 @@ python scripts/test_kafka_pipeline.py --count 50 --interval 0.5
 # Изпълнение на единичните тестове за Kafka компоненти
 KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_consumer.py
 
+
+Airflow is ready
+standalone | Login with username: admin  password: zh3H6pXzfdQaBVdG
+Airflow Standalone is for development purposes only. Do not use this in production!
+
 # Изпълнение на интеграционните тестове
 KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_integration.py
 
