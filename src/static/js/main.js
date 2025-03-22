@@ -9,11 +9,8 @@ const API_ENDPOINTS = {
     NETWORKS: '/twitter/networks'
 };
 
-// Token to use for API authentication (if needed)
-let authToken = localStorage.getItem('auth_token');
-
 /**
- * Make API request with proper authentication
+ * Make API request
  * @param {string} url - API endpoint
  * @param {Object} options - fetch options
  * @returns {Promise} - fetch promise
@@ -26,26 +23,13 @@ async function apiRequest(url, options = {}) {
         }
     };
 
-    // Add authentication if available
-    if (authToken) {
-        defaultOptions.headers['Authorization'] = `Bearer ${authToken}`;
-    }
-
     // Merge options
     const mergedOptions = { ...defaultOptions, ...options };
 
     try {
         const response = await fetch(url, mergedOptions);
 
-        // Handle unauthorized responses
-        if (response.status === 401) {
-            // TODO: Implement login flow or token refresh
-            console.error('Authentication failed');
-            addActivityLog('Authentication error - please log in again', 'error');
-            return null;
-        }
-
-        // Handle other errors
+        // Handle errors
         if (!response.ok) {
             const errorData = await response.json().catch(() => null);
             throw new Error(errorData?.detail || `API error: ${response.status}`);
@@ -74,29 +58,29 @@ async function updateDashboardStats() {
         statusElement.innerHTML = '<div class="spinner"></div>';
 
         // Get status data
-        const statusData = await apiRequest(API_ENDPOINTS.STATUS);
+        try {
+            const statusData = await apiRequest(API_ENDPOINTS.STATUS);
 
-        if (!statusData) return;
+            if (!statusData) return;
 
-        // Update UI
-        tweetsElement.textContent = statusData.stored_tweets.toLocaleString();
-        mentionsElement.textContent = statusData.token_mentions.toLocaleString();
+            // Update UI
+            tweetsElement.textContent = statusData.stored_tweets.toLocaleString();
+            mentionsElement.textContent = statusData.token_mentions.toLocaleString();
 
-        // Update Kafka status with appropriate color
-        const statusBadge = statusData.twitter_connection === 'ok' ?
-            '<span class="badge bg-success">Connected</span>' :
-            '<span class="badge bg-danger">Error</span>';
-        statusElement.innerHTML = statusBadge;
+            // Update Kafka status with appropriate color
+            const statusBadge = statusData.twitter_connection === 'ok' ?
+                '<span class="badge bg-success">Connected</span>' :
+                '<span class="badge bg-danger">Error</span>';
+            statusElement.innerHTML = statusBadge;
 
-        // Add to activity log
-        addActivityLog('Dashboard stats updated', 'info');
+            // Add to activity log
+            addActivityLog('Dashboard stats updated', 'info');
+        } catch (error) {
+            console.error('Error fetching status:', error);
+            statusElement.innerHTML = '<span class="badge bg-warning">Unknown</span>';
+        }
     } catch (error) {
         console.error('Failed to update dashboard stats:', error);
-        // If we're on the dashboard page, show error state
-        if (document.getElementById('kafka-status')) {
-            document.getElementById('kafka-status').innerHTML =
-                '<span class="badge bg-warning">Unknown</span>';
-        }
     }
 }
 
@@ -110,67 +94,25 @@ async function checkKafkaStatus() {
         statusElement.innerHTML = '<div class="spinner"></div>';
 
         // Get status
-        const statusData = await apiRequest(API_ENDPOINTS.STATUS);
+        try {
+            const statusData = await apiRequest(API_ENDPOINTS.STATUS);
 
-        // Update UI based on status
-        const statusBadge = statusData.twitter_connection === 'ok' ?
-            '<span class="badge bg-success">Connected</span>' :
-            '<span class="badge bg-danger">Error</span>';
+            // Update UI based on status
+            const statusBadge = statusData.twitter_connection === 'ok' ?
+                '<span class="badge bg-success">Connected</span>' :
+                '<span class="badge bg-danger">Error</span>';
 
-        statusElement.innerHTML = statusBadge;
+            statusElement.innerHTML = statusBadge;
 
-        // Add to activity log
-        addActivityLog(`Kafka status: ${statusData.twitter_connection}`,
-            statusData.twitter_connection === 'ok' ? 'success' : 'error');
+            // Add to activity log
+            addActivityLog(`Kafka status: ${statusData.twitter_connection}`,
+                statusData.twitter_connection === 'ok' ? 'success' : 'error');
+        } catch (error) {
+            console.error('Error checking status:', error);
+            statusElement.innerHTML = '<span class="badge bg-warning">Check Failed</span>';
+        }
     } catch (error) {
         console.error('Failed to check Kafka status:', error);
-        // Show error state
-        if (document.getElementById('kafka-status')) {
-            document.getElementById('kafka-status').innerHTML =
-                '<span class="badge bg-warning">Check Failed</span>';
-        }
-    }
-}
-
-/**
- * Run tweet collection
- */
-async function runTweetCollection() {
-    try {
-        // Get button and show loading state
-        const button = document.getElementById('run-collection-btn');
-        const originalText = button.textContent;
-        button.innerHTML = '<div class="spinner"></div> Running...';
-        button.disabled = true;
-
-        // Call API
-        const result = await apiRequest(API_ENDPOINTS.COLLECT, {
-            method: 'POST'
-        });
-
-        // Update activity log
-        addActivityLog('Tweet collection triggered successfully', 'success');
-
-        // Reset button
-        setTimeout(() => {
-            button.textContent = originalText;
-            button.disabled = false;
-        }, 2000);
-
-        // Update stats after a delay
-        setTimeout(updateDashboardStats, 5000);
-    } catch (error) {
-        console.error('Failed to run tweet collection:', error);
-
-        // Reset button if it exists
-        const button = document.getElementById('run-collection-btn');
-        if (button) {
-            button.textContent = 'Run Tweet Collection';
-            button.disabled = false;
-        }
-
-        // Add to activity log
-        addActivityLog(`Failed to trigger collection: ${error.message}`, 'error');
     }
 }
 
@@ -251,9 +193,6 @@ async function submitTweet(event) {
 
         // Add to activity log if we're on the dashboard
         addActivityLog(`Manual tweet added: ${tweetData.text.substring(0, 30)}...`, 'success');
-
-        // Optional: reset form
-        // form.reset();
     } catch (error) {
         console.error('Failed to submit tweet:', error);
 
@@ -321,10 +260,81 @@ function addActivityLog(message, type = 'info') {
     }
 }
 
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    // Initial dashboard update
-    if (document.getElementById('kafka-status')) {
-        updateDashboardStats();
+/**
+ * Update Kafka monitoring
+ * This is a placeholder function for the monitoring page
+ */
+function updateKafkaMonitoring() {
+    // В реална имплементация, това би извикало API за получаване на данни за мониторинг
+    console.log('Kafka monitoring update triggered');
+
+    // Актуализирай статуса на връзката
+    const statusEl = document.getElementById('kafka-connection-status');
+    if (statusEl) {
+        statusEl.textContent = 'Connected';
+        statusEl.className = 'badge bg-success';
     }
-});
+
+    // Актуализирай списъка с топици
+    const topicsEl = document.getElementById('kafka-topics');
+    if (topicsEl) {
+        topicsEl.innerHTML = `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                twitter-raw-tweets
+                <span class="badge bg-primary rounded-pill">3 partitions</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                token-mentions
+                <span class="badge bg-primary rounded-pill">3 partitions</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                sentiment-results
+                <span class="badge bg-primary rounded-pill">3 partitions</span>
+            </li>
+        `;
+    }
+
+    // Актуализирай списъка с консуматори
+    const consumersEl = document.getElementById('kafka-consumers');
+    if (consumersEl) {
+        consumersEl.innerHTML = `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                tweet-processor
+                <span class="badge bg-success rounded-pill">Active</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                token-processor
+                <span class="badge bg-success rounded-pill">Active</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                sentiment-analyzer
+                <span class="badge bg-success rounded-pill">Active</span>
+            </li>
+        `;
+    }
+
+    // Актуализирай таблицата с последни съобщения
+    const recentMsgsEl = document.getElementById('recent-messages');
+    if (recentMsgsEl && recentMsgsEl.querySelector('tbody')) {
+        recentMsgsEl.querySelector('tbody').innerHTML = `
+            <tr>
+                <td>twitter-raw-tweets</td>
+                <td>${new Date().toLocaleTimeString()}</td>
+                <td>Processed tweet from @test_user about $SOL</td>
+            </tr>
+            <tr>
+                <td>token-mentions</td>
+                <td>${new Date().toLocaleTimeString()}</td>
+                <td>Detected token $SOL in tweet</td>
+            </tr>
+            <tr>
+                <td>sentiment-results</td>
+                <td>${new Date().toLocaleTimeString()}</td>
+                <td>Analyzed sentiment: POSITIVE (0.78)</td>
+            </tr>
+        `;
+    }
+
+    // В реална имплементация бихме добавили данни от истинския Kafka
+    addActivityLog('Monitoring updated', 'info');
+}
