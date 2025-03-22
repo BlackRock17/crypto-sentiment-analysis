@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Monitoring - Twitter Sentiment Analysis{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2>Kafka Monitoring</h2>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <strong>Status:</strong> <span id="kafka-connection-status">Checking...</span>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">Topics</div>
+                            <div class="card-body">
+                                <ul id="kafka-topics" class="list-group">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        Loading...
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">Consumers</div>
+                            <div class="card-body">
+                                <ul id="kafka-consumers" class="list-group">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        Loading...
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">Recent Messages</div>
+                    <div class="card-body">
+                        <table id="recent-messages" class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Topic</th>
+                                    <th>Time</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="3" class="text-center">No messages available</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize monitoring
+        updateKafkaMonitoring();
+
+        // Refresh every 10 seconds
+        setInterval(updateKafkaMonitoring, 10000);
+    });
+
+    function updateKafkaMonitoring() {
+        // This is a placeholder function - in a real implementation,
+        // you would call an API to get monitoring data
+        const statusEl = document.getElementById('kafka-connection-status');
+        statusEl.textContent = 'Connected';
+        statusEl.className = 'badge bg-success';
+
+        // Update topics
+        const topicsEl = document.getElementById('kafka-topics');
+        topicsEl.innerHTML = `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                twitter-raw-tweets
+                <span class="badge bg-primary rounded-pill">3 partitions</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                token-mentions
+                <span class="badge bg-primary rounded-pill">3 partitions</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                sentiment-results
+                <span class="badge bg-primary rounded-pill">3 partitions</span>
+            </li>
+        `;
+
+        // Update consumers
+        const consumersEl = document.getElementById('kafka-consumers');
+        consumersEl.innerHTML = `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                tweet-processor
+                <span class="badge bg-success rounded-pill">Active</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                token-processor
+                <span class="badge bg-success rounded-pill">Active</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                sentiment-analyzer
+                <span class="badge bg-success rounded-pill">Active</span>
+            </li>
+        `;
+
+        // In a real implementation, you would populate this with actual data from Kafka
+        addActivityLog('Monitoring updated', 'info');
+    }
+</script>
+{% endblock %}
