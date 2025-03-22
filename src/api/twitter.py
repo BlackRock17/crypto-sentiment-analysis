@@ -450,7 +450,7 @@ async def toggle_influencer_automation_endpoint(
 async def add_manual_tweet_endpoint(
         tweet: ManualTweetCreate,
         background_tasks: BackgroundTasks,
-        current_user: User = Depends(get_current_active_user),
+        # current_user: User = Depends(get_current_active_user),
         db: Session = Depends(get_db)
 ):
     """
@@ -465,7 +465,7 @@ async def add_manual_tweet_endpoint(
     Returns:
         Status of the operation
     """
-    logger.info(f"Manual tweet addition by {current_user.username} for influencer {tweet.influencer_username}")
+    # logger.info(f"Manual tweet addition by {current_user.username} for influencer {tweet.influencer_username}")
 
     # Run in foreground for API response
     from src.data_collection.twitter.service import TwitterCollectionService
