@@ -149,7 +149,10 @@ class KafkaMonitor:
 
         # Get consumer group information
         try:
-            consumer_groups = self.admin_client.list_consumer_groups()
+            consumer_groups_future = self.admin_client.list_consumer_groups()
+
+            consumer_groups = consumer_groups_future.result()
+
             if consumer_groups:
                 for group_id, group_info in consumer_groups.items():
                     metrics["consumer_groups"][group_id] = {

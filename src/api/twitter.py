@@ -93,7 +93,7 @@ async def run_twitter_collection(
 
 @router.get("/status")
 async def get_twitter_status(
-        current_user: User = Depends(get_current_active_user),
+        # current_user: User = Depends(get_current_active_user),
         db: Session = Depends(get_db)
 ):
     """
