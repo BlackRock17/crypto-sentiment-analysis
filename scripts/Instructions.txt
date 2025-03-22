@@ -58,3 +58,9 @@ KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_integration.py
 # Изпълнение на end-to-end тестовете
 KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_end_to_end.py
 
+#намиране на парола:
+docker ps - намиране на контейнер
+docker logs 9cdf1707463f | Select-String "username:"   -- WINDOWS
+docker logs <container_id> | grep "username:"          -- LINUX
+
+
