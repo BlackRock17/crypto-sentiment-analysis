@@ -103,6 +103,27 @@ def print_results(**kwargs):
     return "Мониторингът приключи успешно"
 
 
+def test_kafka_connection(**kwargs):
+    import socket
+
+    try:
+        # Опитай да свържеш сокет към Kafka
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)  # 5 секунди таймаут
+        result = sock.connect_ex(('kafka', 9092))
+        sock.close()
+
+        if result == 0:
+            print("Успешна връзка до Kafka на kafka:9092")
+            return True
+        else:
+            print(f"Неуспешна връзка до Kafka на kafka:9092, код: {result}")
+            return False
+    except Exception as e:
+        print(f"Грешка при свързване с Kafka: {e}")
+        return False
+
+
 # Създаване на DAG
 with DAG(
         'kafka_monitor_dag',
@@ -124,5 +145,10 @@ with DAG(
         python_callable=print_results,
     )
 
+    print_results_task_task = PythonOperator(
+        task_id='test_kafka_connection',
+        python_callable=test_kafka_connection,
+    )
+
     # Дефиниране на последователност
-    monitor_raw_tweets >> print_results_task
+    monitor_raw_tweets >> print_results_task >> print_results_task_task

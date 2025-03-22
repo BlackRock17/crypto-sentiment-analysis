@@ -6,7 +6,6 @@ import sys
 import json
 import logging
 from datetime import datetime, timedelta
-
 # Airflow импорти
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -103,7 +102,7 @@ def process_tweets(**kwargs):
         # Проверка на връзката с Kafka
         try:
             from confluent_kafka.admin import AdminClient
-            admin = AdminClient({'bootstrap.servers': 'localhost:9092'})  # Променен адрес
+            admin = AdminClient({'bootstrap.servers': 'kafka:9092'})  # Променен адрес
             metadata = admin.list_topics(timeout=10)
             logger.info(f"Успешна връзка с Kafka! Налични топици: {list(metadata.topics.keys())}")
         except Exception as e:
@@ -112,7 +111,7 @@ def process_tweets(**kwargs):
 
         # Конфигурация на консуматора с повече детайли
         config = {
-            'bootstrap.servers': 'localhost:9092',  # Променен адрес
+            'bootstrap.servers': 'kafka:9092',  # Променен адрес
             'group.id': 'airflow-twitter-processor',
             'auto.offset.reset': 'earliest',
             'enable.auto.commit': True,
@@ -135,11 +134,12 @@ def process_tweets(**kwargs):
 
         # Опит за получаване на съобщения (с таймаут)
         start_time = datetime.now()
-        timeout = timedelta(seconds=60)  # Увеличен таймаут от 20 на 60 секунди
+        timeout_seconds = 60
+        end_time = start_time + timedelta(seconds=timeout_seconds)
 
-        logger.info(f"Започваме да четем съобщения в рамките на {timeout.seconds} секунди")
+        logger.info(f"Започваме да четем съобщения от {start_time} до {end_time}")
 
-        while datetime.now() - start_time < timeout:
+        while datetime.now() < end_time:
             msg = consumer.poll(timeout=10.0)
 
             if msg is None:
@@ -159,7 +159,6 @@ def process_tweets(**kwargs):
 
                     if 'created_at' in tweet_data and isinstance(tweet_data['created_at'], str):
                         try:
-                            from datetime import datetime
                             tweet_data['created_at'] = datetime.fromisoformat(
                                 tweet_data['created_at'].replace('Z', '+00:00'))
                         except ValueError:
