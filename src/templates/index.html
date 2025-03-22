@@ -49,7 +49,6 @@
                 <div class="d-grid gap-2 d-md-flex">
                     <a href="/add-tweet" class="btn btn-primary btn-lg">Add Tweet</a>
                     <button id="check-status-btn" class="btn btn-info btn-lg">Check Kafka Status</button>
-                    <button id="run-collection-btn" class="btn btn-success btn-lg">Run Tweet Collection</button>
                 </div>
             </div>
         </div>
@@ -70,14 +69,12 @@
 
 {% block scripts %}
 <script>
-    // Will be implemented in main.js
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize dashboard
         updateDashboardStats();
 
         // Setup button handlers
         document.getElementById('check-status-btn').addEventListener('click', checkKafkaStatus);
-        document.getElementById('run-collection-btn').addEventListener('click', runTweetCollection);
     });
 </script>
 {% endblock %}
