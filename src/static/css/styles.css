@@ -1,0 +1,101 @@
+/* Custom styles for Twitter Sentiment Analysis UI */
+
+/* Main elements */
+body {
+    background-color: #f8f9fa;
+}
+
+/* Dashboard cards */
+.card {
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border: none;
+}
+
+.card-header {
+    border-radius: 8px 8px 0 0 !important;
+}
+
+/* Status badges */
+.status-badge {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.6rem;
+}
+
+/* Animation for loading */
+.spinner {
+    display: inline-block;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 3px solid rgba(0, 0, 0, 0.3);
+    border-radius: 50%;
+    border-top-color: #007bff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Tweet visualization */
+.tweet-card {
+    border-left: 4px solid #1da1f2;
+    padding-left: 15px;
+}
+
+.cashtag {
+    color: #17a2b8;
+    font-weight: bold;
+}
+
+.hashtag {
+    color: #007bff;
+    font-weight: bold;
+}
+
+/* Token mentions */
+.token-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.token-network {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.confidence-indicator {
+    display: inline-block;
+    width: 60px;
+    height: 8px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.confidence-level {
+    height: 100%;
+    background-color: #28a745;
+}
+
+/* Activity log */
+#activity-log {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.log-entry {
+    border-left: 4px solid transparent;
+    margin-bottom: 5px;
+}
+
+.log-entry.info { border-left-color: #17a2b8; }
+.log-entry.success { border-left-color: #28a745; }
+.log-entry.warning { border-left-color: #ffc107; }
+.log-entry.error { border-left-color: #dc3545; }
+
+.log-timestamp {
+    font-size: 0.75rem;
+    color: #6c757d;
+}

@@ -1,15 +1,28 @@
-import uvicorn
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+# Настройка на логера
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Импортирай твоя RateLimiter
+from src.middleware.rate_limiter import RateLimiter
+
+# Импортирай другите необходими модули
 from src.monitoring.setup import setup_kafka_monitoring, shutdown_kafka_monitoring
 from src.api.auth import router as auth_router
 from src.api.twitter import router as twitter_router
-from src.middleware.rate_limiter import RateLimiter
 from src.scheduler import setup_scheduler, shutdown_scheduler
 from src.api.notifications import router as notifications_router
-from src.data_processing.kafka.setup import create_topics  # Add this import
+from src.data_processing.kafka.setup import create_topics
+
+# Глобална променлива за Kafka мониторинг
+kafka_monitoring = None
 
 
 @asynccontextmanager
@@ -17,21 +30,23 @@ async def lifespan(app: FastAPI):
     """
     Startup and shutdown events for the FastAPI application.
     """
+    global kafka_monitoring
+
     # Startup: Set up Kafka topics and start scheduler
     try:
         # Create Kafka topics if they don't exist
         topics_created = create_topics()
         if topics_created:
-            app.logger.info("Kafka topics created successfully")
+            logger.info("Kafka topics created successfully")
         else:
-            app.logger.warning("Failed to create Kafka topics - services may not function correctly")
+            logger.warning("Failed to create Kafka topics - services may not function correctly")
 
         # Set up Kafka monitoring
         monitoring = setup_kafka_monitoring()
-        app.state.kafka_monitoring = monitoring
+        kafka_monitoring = monitoring
 
     except Exception as e:
-        app.logger.error(f"Error creating Kafka topics: {e}")
+        logger.error(f"Error creating Kafka topics: {e}")
 
     # Set up and start scheduler
     scheduler = setup_scheduler()
@@ -54,7 +69,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,21 +78,27 @@ app.add_middleware(
 # Add rate limiting middleware
 app.add_middleware(RateLimiter)
 
-# Include routers
+# Настройка за шаблони и статични файлове
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
+templates = Jinja2Templates(directory="src/templates")
+
+# Include API routers
 app.include_router(auth_router)
 app.include_router(twitter_router)
 app.include_router(notifications_router)
 
 
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "name": "Solana Sentiment Analysis API",
-        "version": "0.1.0",
-        "status": "active"
-    }
+# Ендпойнти за UI
+@app.get("/", response_class=HTMLResponse)
+async def read_index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
-if __name__ == "__main__":
-    uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True)
+@app.get("/add-tweet", response_class=HTMLResponse)
+async def read_add_tweet(request: Request):
+    return templates.TemplateResponse("tweet_form.html", {"request": request})
+
+
+@app.get("/monitoring", response_class=HTMLResponse)
+async def read_monitoring(request: Request):
+    return templates.TemplateResponse("monitoring.html", {"request": request})

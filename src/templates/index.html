@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Twitter Sentiment Analysis{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2>Dashboard</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Tweets Processed</h5>
+                                <h2 id="tweets-processed">0</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Mentions Found</h5>
+                                <h2 id="mentions-found">0</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Kafka Status</h5>
+                                <h2 id="kafka-status">
+                                    <span class="badge bg-secondary">Unknown</span>
+                                </h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h2>Quick Actions</h2>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2 d-md-flex">
+                    <a href="/add-tweet" class="btn btn-primary btn-lg">Add Tweet</a>
+                    <button id="check-status-btn" class="btn btn-info btn-lg">Check Kafka Status</button>
+                    <button id="run-collection-btn" class="btn btn-success btn-lg">Run Tweet Collection</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h3>Recent Activity</h3>
+            <div class="card">
+                <div class="card-body">
+                    <ul id="activity-log" class="list-group">
+                        <li class="list-group-item text-center text-muted">No recent activity</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Will be implemented in main.js
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize dashboard
+        updateDashboardStats();
+
+        // Setup button handlers
+        document.getElementById('check-status-btn').addEventListener('click', checkKafkaStatus);
+        document.getElementById('run-collection-btn').addEventListener('click', runTweetCollection);
+    });
+</script>
+{% endblock %}
