@@ -77,7 +77,8 @@ class TwitterConfig(BaseSettings):
     )
 
     def __init__(self, **data):
-        data["is_test_mode"] = True
+        if "is_test_mode" not in data:
+            data["is_test_mode"] = False
 
         # Get values from environment variables if they exist
         if TWITTER_API_KEY and TWITTER_API_KEY != "your_api_key":
