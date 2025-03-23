@@ -32,6 +32,12 @@ async def lifespan(app: FastAPI):
     """
     global kafka_monitoring
 
+    import os
+    os.environ["TESTING"] = "true"
+    from src.data_collection.twitter.config import twitter_config
+    twitter_config.is_test_mode = True
+    logger.info(f"Twitter API в тестов режим: {twitter_config.is_test_mode}")
+
     # Startup: Set up Kafka topics and start scheduler
     try:
         # Create Kafka topics if they don't exist
