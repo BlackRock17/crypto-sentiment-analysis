@@ -10,6 +10,7 @@ from src.data_processing.kafka.consumer import KafkaConsumer
 from src.data_processing.kafka.config import TOPICS
 from src.data_processing.database import get_db
 from src.data_processing.models.database import SentimentEnum
+from src.data_processing.crud.read import get_sentiment_analysis_by_tweet_id
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,11 @@ class SentimentConsumer(KafkaConsumer):
                 if not tweet:
                     logger.error(f"Tweet not found: {tweet_id}")
                     return False
+
+                existing_analysis = get_sentiment_analysis_by_tweet_id(db, tweet.id)
+                if existing_analysis:
+                    logger.info(f"Sentiment analysis already exists for tweet {tweet_id}, skipping")
+                    return True
 
                 # Perform sentiment analysis
                 # This is a placeholder - in a real application, you would call your sentiment analysis model

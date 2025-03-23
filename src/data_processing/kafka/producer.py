@@ -176,10 +176,6 @@ class TwitterProducer(KafkaProducer):
         # Use tweet_id as the message key if available for partitioning
         key = str(tweet_data.get('tweet_id', '')) or None
 
-        if hasattr(self, 'client') and self.client is None:
-            logger.info(f"Test mode: Simulating successful send of tweet {key}")
-            return True
-
         return self.send(
             topic=TOPICS['RAW_TWEETS'],
             value=tweet_data,

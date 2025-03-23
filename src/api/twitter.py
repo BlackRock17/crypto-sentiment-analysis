@@ -448,8 +448,6 @@ async def toggle_influencer_automation_endpoint(
     return updated
 
 
-# Подобрена версия на add_manual_tweet_endpoint в src/api/twitter.py:
-
 @router.post("/manual-tweets", response_model=TweetResponse)
 async def add_manual_tweet_endpoint(
         tweet: ManualTweetCreate,
@@ -473,7 +471,7 @@ async def add_manual_tweet_endpoint(
     logger.info(f"Manual tweet addition for influencer {tweet.influencer_username}")
 
     try:
-        # ИЗМЕНЕНО: В тестов режим, създаваме tweet директно
+        # ТЕСТОВ РЕЖИМ: създава туит директно и изпраща към Kafka за обработка
         if twitter_config.is_test_mode:
             import uuid
             from src.data_processing.models.database import Tweet, TokenMention, BlockchainToken
@@ -509,7 +507,7 @@ async def add_manual_tweet_endpoint(
                 db.commit()
                 db.refresh(stored_tweet)
 
-            # Добави token_mentions
+            # Добави token_mentions само за целите на UI отговора
             token_mentions = []
             # Търси $cashtags в съдържанието на tweet-а
             import re
@@ -555,15 +553,40 @@ async def add_manual_tweet_endpoint(
             # Commit промените
             db.commit()
 
-            # Извличане на накърницитал списък с токени
+            # Извличане на списък с токени за отговора
             token_symbols = []
             for mention in db.query(TokenMention).filter_by(tweet_id=stored_tweet.id).all():
                 token = db.query(BlockchainToken).filter_by(id=mention.token_id).first()
                 if token:
                     token_symbols.append(token.symbol)
 
-            # Приготви отговора
+            # ВАЖНО: Изпращане към Kafka за обработка
+            from src.data_processing.kafka.producer import TwitterProducer
+
+            # Подготвяме данните за изпращане
             tweet_data = {
+                "tweet_id": stored_tweet.tweet_id,
+                "text": stored_tweet.text,
+                "created_at": stored_tweet.created_at.isoformat() if hasattr(stored_tweet.created_at,
+                                                                             'isoformat') else str(
+                    stored_tweet.created_at),
+                "author_id": stored_tweet.author_id,
+                "author_username": stored_tweet.author_username,
+                "retweet_count": stored_tweet.retweet_count,
+                "like_count": stored_tweet.like_count
+            }
+
+            # Изпращаме към Kafka за пълна обработка
+            producer = TwitterProducer()
+            success = producer.send_tweet(tweet_data)
+
+            if success:
+                logger.info(f"Tweet {stored_tweet.tweet_id} successfully sent to Kafka for processing")
+            else:
+                logger.warning(f"Failed to send tweet {stored_tweet.tweet_id} to Kafka")
+
+            # Приготви отговора за UI
+            response_data = {
                 "id": stored_tweet.id,
                 "tweet_id": stored_tweet.tweet_id,
                 "text": stored_tweet.text,
@@ -574,13 +597,9 @@ async def add_manual_tweet_endpoint(
                 "token_mentions": token_symbols
             }
 
-            # Симулирай изпращане към Kafka (за логинг)
-            logger.info(f"Test mode: Simulated sending tweet to Kafka")
+            return response_data
 
-            return tweet_data
-
-        # Оригинален код за не-тестова среда
-        # Run in foreground for API response
+        # ПРОДУКЦИОНЕН РЕЖИМ: Използваме съществуващата логика
         from src.data_collection.twitter.service import TwitterCollectionService
 
         service = TwitterCollectionService(db)
