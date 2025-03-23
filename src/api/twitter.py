@@ -468,7 +468,92 @@ async def add_manual_tweet_endpoint(
         Status of the operation
     """
     # logger.info(f"Manual tweet addition by {current_user.username} for influencer {tweet.influencer_username}")
+    logger.info(f"Manual tweet addition for influencer {tweet.influencer_username}")
 
+    # ИЗМЕНЕНО: В тестов режим, създаваме tweet директно
+    if twitter_config.is_test_mode:
+        import uuid
+        from src.data_processing.models.database import Tweet, TokenMention
+
+        # Генерирай tweet_id ако не е подаден
+        tweet_id = tweet.tweet_id or f"manual_{uuid.uuid4().hex}"
+
+        # Подготви данни
+        created_at = tweet.created_at or datetime.utcnow()
+
+        # Създай tweet в DB
+        stored_tweet = Tweet(
+            tweet_id=tweet_id,
+            text=tweet.text,
+            created_at=created_at,
+            author_id=f"user_{tweet.influencer_username}",
+            author_username=tweet.influencer_username,
+            retweet_count=tweet.retweet_count,
+            like_count=tweet.like_count
+        )
+
+        db.add(stored_tweet)
+        db.commit()
+        db.refresh(stored_tweet)
+
+        # Добави token_mentions
+        token_mentions = []
+        # Търси $cashtags в съдържанието на tweet-а
+        import re
+        cashtag_pattern = r'\$([A-Za-z0-9]+)'
+        cashtags = re.findall(cashtag_pattern, tweet.text)
+
+        for symbol in cashtags:
+            # Провери дали съществува такъв токен
+            from src.data_processing.crud.read import get_blockchain_token_by_symbol
+            token = get_blockchain_token_by_symbol(db, symbol)
+
+            # Ако не съществува, създай го
+            if not token:
+                from src.data_processing.crud.create import create_blockchain_token
+                token = create_blockchain_token(
+                    db=db,
+                    token_address=f"test_address_{symbol.lower()}",
+                    symbol=symbol,
+                    name=symbol,
+                    blockchain_network=None,
+                    network_confidence=0.0,
+                    manually_verified=False,
+                    needs_review=True
+                )
+
+            # Създай връзка на token mention
+            mention = TokenMention(
+                tweet_id=stored_tweet.id,
+                token_id=token.id,
+                mentioned_at=datetime.utcnow()
+            )
+
+            db.add(mention)
+            token_mentions.append(mention)
+
+        # Commit промените
+        db.commit()
+
+        # Приготви отговора
+        tweet_data = {
+            "id": stored_tweet.id,
+            "tweet_id": stored_tweet.tweet_id,
+            "text": stored_tweet.text,
+            "created_at": stored_tweet.created_at,
+            "author_username": stored_tweet.author_username,
+            "retweet_count": stored_tweet.retweet_count,
+            "like_count": stored_tweet.like_count,
+            "token_mentions": [token.symbol for token in
+                               db.query(TokenMention.token_id).filter_by(tweet_id=stored_tweet.id)]
+        }
+
+        # Симулирай изпращане към Kafka (за логинг)
+        logger.info(f"Test mode: Simulated sending tweet to Kafka")
+
+        return tweet_data
+
+    # Оригинален код за не-тестова среда
     # Run in foreground for API response
     from src.data_collection.twitter.service import TwitterCollectionService
 
