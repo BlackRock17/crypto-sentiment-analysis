@@ -452,182 +452,52 @@ async def toggle_influencer_automation_endpoint(
 async def add_manual_tweet_endpoint(
         tweet: ManualTweetCreate,
         background_tasks: BackgroundTasks,
-        # current_user: User = Depends(get_current_active_user),
         db: Session = Depends(get_db)
 ):
     """
     Manually add a tweet for analysis.
-
-    Args:
-        tweet: Tweet data
-        background_tasks: FastAPI background tasks
-        current_user: Current authenticated user
-        db: Database session
-
-    Returns:
-        Status of the operation
     """
-    # logger.info(f"Manual tweet addition by {current_user.username} for influencer {tweet.influencer_username}")
     logger.info(f"Manual tweet addition for influencer {tweet.influencer_username}")
 
     try:
-        # ТЕСТОВ РЕЖИМ: създава туит директно и изпраща към Kafka за обработка
-        if twitter_config.is_test_mode:
-            import uuid
-            from src.data_processing.models.database import Tweet, TokenMention, BlockchainToken
+        # Генерираме tweet_id ако не е подаден
+        import uuid
+        tweet_id = tweet.tweet_id or f"manual_{uuid.uuid4().hex}"
 
-            # Генерирай tweet_id ако не е подаден
-            tweet_id = tweet.tweet_id or f"manual_{uuid.uuid4().hex}"
+        # Подготвяме created_at
+        created_at = tweet.created_at or datetime.utcnow()
 
-            # Подготви данни
-            created_at = tweet.created_at or datetime.utcnow()
+        # ВАЖНО: Изпращаме към Kafka за обработка
+        from src.data_processing.kafka.producer import TwitterProducer
 
-            # Нормализиране на created_at (премахване на timezone ако има)
-            if created_at.tzinfo is not None:
-                created_at = datetime(created_at.year, created_at.month, created_at.day,
-                                      created_at.hour, created_at.minute, created_at.second,
-                                      created_at.microsecond)
+        # Подготвяме данните за изпращане
+        tweet_data = {
+            "tweet_id": tweet_id,
+            "text": tweet.text,
+            "created_at": created_at.isoformat(),
+            "author_id": f"user_{tweet.influencer_username}",
+            "author_username": tweet.influencer_username,
+            "retweet_count": tweet.retweet_count,
+            "like_count": tweet.like_count,
+            "is_manually_added": True
+        }
 
-            # Създай tweet в DB или го вземи ако вече съществува
-            stored_tweet = db.query(Tweet).filter_by(tweet_id=tweet_id).first()
+        # Изпращаме към Kafka
+        producer = TwitterProducer()
+        success = producer.send_tweet(tweet_data)
 
-            if not stored_tweet:
-                # Създай нов tweet ако не съществува
-                stored_tweet = Tweet(
-                    tweet_id=tweet_id,
-                    text=tweet.text,
-                    created_at=created_at,
-                    author_id=f"user_{tweet.influencer_username}",
-                    author_username=tweet.influencer_username,
-                    retweet_count=tweet.retweet_count,
-                    like_count=tweet.like_count
-                )
+        if not success:
+            raise ServerErrorException("Failed to send tweet to Kafka")
 
-                db.add(stored_tweet)
-                db.commit()
-                db.refresh(stored_tweet)
-
-            # Добави token_mentions само за целите на UI отговора
-            token_mentions = []
-            # Търси $cashtags в съдържанието на tweet-а
-            import re
-            cashtag_pattern = r'\$([A-Za-z0-9]+)'
-            cashtags = re.findall(cashtag_pattern, tweet.text)
-
-            for symbol in cashtags:
-                # Провери дали съществува такъв токен
-                token = db.query(BlockchainToken).filter_by(symbol=symbol).first()
-
-                # Ако не съществува, създай го
-                if not token:
-                    token = BlockchainToken(
-                        token_address=f"test_address_{symbol.lower()}",
-                        symbol=symbol,
-                        name=symbol,
-                        blockchain_network=None,
-                        network_confidence=0.0,
-                        manually_verified=False,
-                        needs_review=True
-                    )
-                    db.add(token)
-                    db.commit()
-                    db.refresh(token)
-
-                # Провери дали вече има такава връзка
-                existing_mention = db.query(TokenMention).filter_by(
-                    tweet_id=stored_tweet.id,
-                    token_id=token.id
-                ).first()
-
-                if not existing_mention:
-                    # Създай връзка на token mention
-                    mention = TokenMention(
-                        tweet_id=stored_tweet.id,
-                        token_id=token.id,
-                        mentioned_at=datetime.utcnow()
-                    )
-
-                    db.add(mention)
-                    token_mentions.append(mention)
-
-            # Commit промените
-            db.commit()
-
-            # Извличане на списък с токени за отговора
-            token_symbols = []
-            for mention in db.query(TokenMention).filter_by(tweet_id=stored_tweet.id).all():
-                token = db.query(BlockchainToken).filter_by(id=mention.token_id).first()
-                if token:
-                    token_symbols.append(token.symbol)
-
-            # ВАЖНО: Изпращане към Kafka за обработка
-            from src.data_processing.kafka.producer import TwitterProducer
-
-            # Подготвяме данните за изпращане
-            tweet_data = {
-                "tweet_id": stored_tweet.tweet_id,
-                "text": stored_tweet.text,
-                "created_at": stored_tweet.created_at.isoformat() if hasattr(stored_tweet.created_at,
-                                                                             'isoformat') else str(
-                    stored_tweet.created_at),
-                "author_id": stored_tweet.author_id,
-                "author_username": stored_tweet.author_username,
-                "retweet_count": stored_tweet.retweet_count,
-                "like_count": stored_tweet.like_count
-            }
-
-            # Изпращаме към Kafka за пълна обработка
-            producer = TwitterProducer()
-            success = producer.send_tweet(tweet_data)
-
-            if success:
-                logger.info(f"Tweet {stored_tweet.tweet_id} successfully sent to Kafka for processing")
-            else:
-                logger.warning(f"Failed to send tweet {stored_tweet.tweet_id} to Kafka")
-
-            # Приготви отговора за UI
-            response_data = {
-                "id": stored_tweet.id,
-                "tweet_id": stored_tweet.tweet_id,
-                "text": stored_tweet.text,
-                "created_at": stored_tweet.created_at,
-                "author_username": stored_tweet.author_username,
-                "retweet_count": stored_tweet.retweet_count,
-                "like_count": stored_tweet.like_count,
-                "token_mentions": token_symbols
-            }
-
-            return response_data
-
-        # ПРОДУКЦИОНЕН РЕЖИМ: Използваме съществуващата логика
-        from src.data_collection.twitter.service import TwitterCollectionService
-
-        service = TwitterCollectionService(db)
-        stored_tweet, mentions_count = service.add_manual_tweet(
-            influencer_username=tweet.influencer_username,
-            tweet_text=tweet.text,
-            created_at=tweet.created_at,
-            tweet_id=tweet.tweet_id,
-            retweet_count=tweet.retweet_count,
-            like_count=tweet.like_count
-        )
-
-        if not stored_tweet:
-            raise ServerErrorException("Failed to add manual tweet")
-
-        # Get tweet with mentions
-        repository = TwitterRepository(db)
-        tweet_data = repository.get_tweet_with_mentions(stored_tweet.id)
-
-        if not tweet_data:
-            raise ServerErrorException("Failed to retrieve stored tweet")
-
-        return tweet_data
+        # За UI отговора, създаваме базов обект - пълната обработка ще стане чрез Kafka
+        return {
+            "status": "success",
+            "message": "Tweet submitted for processing",
+            "tweet_id": tweet_id
+        }
 
     except Exception as e:
         logger.error(f"Error adding manual tweet: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
         raise ServerErrorException(f"Failed to add manual tweet: {str(e)}")
 
 

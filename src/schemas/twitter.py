@@ -77,15 +77,18 @@ class ManualTweetCreate(BaseModel):
 
 class TweetResponse(BaseModel):
     """Schema for tweet response"""
-    id: int
+    status: str
+    message: str
     tweet_id: str
-    text: str
-    created_at: datetime
-    author_username: str
-    retweet_count: int
-    like_count: int
-    token_mentions: List[str] = []
-    sentiment: Optional[str] = None
+    # id: int
+    # tweet_id: str
+    # text: str
+    # created_at: datetime
+    # author_username: str
+    # retweet_count: int
+    # like_count: int
+    # token_mentions: List[str] = []
+    # sentiment: Optional[str] = None
 
     model_config = {
         "from_attributes": True
