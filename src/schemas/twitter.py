@@ -59,8 +59,19 @@ class ManualTweetCreate(BaseModel):
 
     @field_validator('created_at')
     def validate_created_at(cls, v):
-        if v and v > datetime.utcnow():
-            raise ValueError("Created at date cannot be in the future")
+        """Validate that created_at is not in the future."""
+        if v:
+            # Направи сравнение по-безопасно като премахнем timezone ако има такава
+            now = datetime.utcnow()
+
+            # Ако входящата дата има timezone информация, премахнете я
+            if v.tzinfo is not None:
+                # Конвертиране към naive datetime чрез замяна на стойностите
+                v = datetime(v.year, v.month, v.day, v.hour, v.minute, v.second, v.microsecond)
+
+            # Сега можем да сравним двете naive дати безопасно
+            if v > now:
+                raise ValueError("Created date cannot be in the future")
         return v
 
 

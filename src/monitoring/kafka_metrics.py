@@ -200,10 +200,74 @@ class KafkaMonitor:
             time_str = time.strftime("%H-%M-%S", time.localtime(timestamp))
             filename = f"{metrics_dir}/kafka_metrics_{date_str}_{time_str}.json"
 
+            # Create a JSON-compatible version of the metrics
+            json_metrics = {}
+            for key, value in metrics.items():
+                # Преобразуване на речниците рекурсивно
+                if isinstance(value, dict):
+                    json_metrics[key] = self._convert_dict_to_json_compatible(value)
+                else:
+                    json_metrics[key] = self._convert_to_json_compatible(value)
+
             # Write metrics to file
             with open(filename, 'w') as f:
-                json.dump(metrics, f, indent=2)
+                json.dump(json_metrics, f, indent=2)
 
             logger.debug(f"Saved Kafka metrics to {filename}")
         except Exception as e:
             logger.error(f"Error saving metrics to file: {e}")
+
+    def _convert_dict_to_json_compatible(self, d: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert a dictionary to a JSON-compatible dictionary.
+
+        Args:
+            d: Dictionary to convert
+
+        Returns:
+            JSON-compatible dictionary
+        """
+        result = {}
+        for key, value in d.items():
+            if isinstance(value, dict):
+                result[key] = self._convert_dict_to_json_compatible(value)
+            elif isinstance(value, list):
+                result[key] = [
+                    self._convert_dict_to_json_compatible(item) if isinstance(item, dict)
+                    else self._convert_to_json_compatible(item)
+                    for item in value
+                ]
+            else:
+                result[key] = self._convert_to_json_compatible(value)
+        return result
+
+    def _convert_to_json_compatible(self, value: Any) -> Any:
+        """
+        Convert a value to a JSON-compatible value.
+
+        Args:
+            value: Value to convert
+
+        Returns:
+            JSON-compatible value
+        """
+        # Handle special types
+        if hasattr(value, '__dict__'):
+            # Ако е обект с атрибути, превръщаме го в речник
+            return str(value)
+        elif hasattr(value, 'isoformat'):
+            # Ако е дата/час, превръщаме в ISO формат
+            return value.isoformat()
+        elif isinstance(value, (set, frozenset)):
+            # Преобразуване на множества в списъци
+            return list(value)
+        elif isinstance(value, bytes):
+            # Преобразуване на bytes в base64
+            import base64
+            return base64.b64encode(value).decode('ascii')
+        elif value is None or isinstance(value, (str, int, float, bool)):
+            # Основни типове, които JSON поддържа директно
+            return value
+        else:
+            # Всички други типове конвертираме към низ
+            return str(value)
