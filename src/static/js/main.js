@@ -122,6 +122,7 @@ async function checkKafkaStatus() {
  */
 async function submitTweet(event) {
     event.preventDefault();
+    console.log("Submit tweet function called");
 
     // Get form and processing status element
     const form = event.target;
@@ -137,11 +138,25 @@ async function submitTweet(event) {
     try {
         // Get form data
         const formData = new FormData(form);
+
+        // Collect and log form data for debugging
+        const tweetText = formData.get('tweet_text') || '';
+        const influencerUsername = formData.get('influencer_username') || '';
+        const retweetCount = parseInt(formData.get('retweet_count') || '0');
+        const likeCount = parseInt(formData.get('like_count') || '0');
+
+        console.log("Form data collected:", {
+            text: tweetText,
+            username: influencerUsername,
+            retweets: retweetCount,
+            likes: likeCount
+        });
+
         const tweetData = {
-            influencer_username: formData.get('influencer_username'),
-            text: formData.get('tweet_text'),
-            retweet_count: parseInt(formData.get('retweet_count') || '0'),
-            like_count: parseInt(formData.get('like_count') || '0')
+            influencer_username: influencerUsername,
+            text: tweetText,
+            retweet_count: retweetCount,
+            like_count: likeCount
         };
 
         // Add created_at if provided
@@ -151,38 +166,35 @@ async function submitTweet(event) {
         }
 
         // Submit tweet
+        console.log("Sending data to API:", tweetData);
         const result = await apiRequest(API_ENDPOINTS.MANUAL_TWEET, {
             method: 'POST',
             body: JSON.stringify(tweetData)
         });
 
-        // Show success message based on the new response format
+        console.log("API response:", result);
+
+        // Simplify response display - no fancy formatting of text
         statusElement.innerHTML = `
             <div class="alert alert-success">
-                ${result.message}
+                Tweet submitted successfully! ID: ${result.tweet_id}
             </div>
-            <div class="tweet-card p-3 border bg-light">
+            <div class="card p-3 border bg-light">
                 <div class="d-flex justify-content-between">
-                    <strong>@${tweetData.influencer_username}</strong>
-                    <small>${new Date().toLocaleString()}</small>
+                    <strong>@${influencerUsername}</strong>
                 </div>
-                <p>${formatTweetText(tweetData.text)}</p>
-                <div class="text-muted">
-                    <small>ID: ${result.tweet_id}</small> |
-                    <span>♻️ ${tweetData.retweet_count}</span> |
-                    <span>❤️ ${tweetData.like_count}</span>
-                </div>
+                <p>${tweetText}</p>
             </div>
         `;
 
-        // Hide token mentions panel since tokens will be processed asynchronously
+        // Hide token mentions panel
         const mentionsPanel = document.getElementById('token-mentions-panel');
         if (mentionsPanel) {
             mentionsPanel.classList.add('d-none');
         }
 
-        // Add to activity log if we're on the dashboard
-        addActivityLog(`Tweet submitted: ${tweetData.text.substring(0, 30)}...`, 'success');
+        // Add to activity log
+        addActivityLog(`Tweet submitted successfully`, 'success');
     } catch (error) {
         console.error('Failed to submit tweet:', error);
 
@@ -193,23 +205,6 @@ async function submitTweet(event) {
             </div>
         `;
     }
-}
-
-/**
- * Format tweet text with highlighted cashtags and hashtags
- * @param {string} text - Raw tweet text
- * @returns {string} - Formatted HTML
- */
-function formatTweetText(text) {
-    if (!text) return '';
-
-    // Highlight cashtags
-    let formatted = text.replace(/\$([A-Za-z0-9]+)/g, '<span class="cashtag">$$$1</span>');
-
-    // Highlight hashtags
-    formatted = formatted.replace(/#([A-Za-z0-9_]+)/g, '<span class="hashtag">#$1</span>');
-
-    return formatted;
 }
 
 /**
