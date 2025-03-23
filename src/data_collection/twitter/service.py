@@ -130,6 +130,43 @@ class TwitterCollectionService:
         Returns:
             Tuple of (stored_tweet, mentions_count)
         """
+        # ДОБАВЕНО: Опростена логика за тестови режим
+        if twitter_config.is_test_mode:
+            logger.info(f"Test mode: Creating mock tweet for {influencer_username}")
+
+            # Генерирай tweet_id ако не е подаден
+            if not tweet_id:
+                import uuid
+                tweet_id = f"manual_{uuid.uuid4().hex}"
+
+            # Създай примерен Tweet обект за връщане
+            tweet = Tweet(
+                tweet_id=tweet_id,
+                text=tweet_text,
+                created_at=created_at or datetime.utcnow(),
+                author_id=f"user_{influencer_username}",
+                author_username=influencer_username,
+                retweet_count=retweet_count,
+                like_count=like_count
+            )
+
+            # Изпрати към Kafka (или симулирай изпращане)
+            tweet_data = {
+                "tweet_id": tweet_id,
+                "text": tweet_text,
+                "created_at": (created_at or datetime.utcnow()).isoformat(),
+                "author_id": f"user_{influencer_username}",
+                "author_username": influencer_username,
+                "retweet_count": retweet_count,
+                "like_count": like_count,
+                "is_manually_added": True
+            }
+
+            self.kafka_producer.send_tweet(tweet_data)
+            logger.info(f"Manual tweet sent to Kafka (simulated): {tweet_id}")
+
+            return tweet, 0
+
         # Get or create influencer
         influencer = get_influencer_by_username(self.db, influencer_username)
 
