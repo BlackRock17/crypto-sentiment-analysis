@@ -460,40 +460,25 @@ async def add_manual_tweet_endpoint(
     logger.info(f"Manual tweet addition for influencer {tweet.influencer_username}")
 
     try:
-        # Генерираме tweet_id ако не е подаден
-        import uuid
-        tweet_id = tweet.tweet_id or f"manual_{uuid.uuid4().hex}"
-
-        # Подготвяме created_at
-        created_at = tweet.created_at or datetime.utcnow()
-
-        # ВАЖНО: Изпращаме към Kafka за обработка
-        from src.data_processing.kafka.producer import TwitterProducer
-
-        # Подготвяме данните за изпращане
-        tweet_data = {
-            "tweet_id": tweet_id,
-            "text": tweet.text,
-            "created_at": created_at.isoformat(),
-            "author_id": f"user_{tweet.influencer_username}",
-            "author_username": tweet.influencer_username,
-            "retweet_count": tweet.retweet_count,
-            "like_count": tweet.like_count,
-            "is_manually_added": True
-        }
-
-        # Изпращаме към Kafka
-        producer = TwitterProducer()
-        success = producer.send_tweet(tweet_data)
+        # Извикваме съществуващата функционалност за добавяне на ръчен туит
+        # от src/data_collection/tasks/twitter_tasks.py
+        success = add_manual_tweet(
+            influencer_username=tweet.influencer_username,
+            tweet_text=tweet.text,
+            created_at=tweet.created_at,
+            tweet_id=tweet.tweet_id,
+            retweet_count=tweet.retweet_count,
+            like_count=tweet.like_count
+        )
 
         if not success:
-            raise ServerErrorException("Failed to send tweet to Kafka")
+            raise ServerErrorException("Failed to add manual tweet")
 
-        # За UI отговора, създаваме базов обект - пълната обработка ще стане чрез Kafka
+        # Създаваме отговор за UI-а
         return {
             "status": "success",
             "message": "Tweet submitted for processing",
-            "tweet_id": tweet_id
+            "tweet_id": tweet.tweet_id or f"manual_{datetime.utcnow().timestamp()}"
         }
 
     except Exception as e:
