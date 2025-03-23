@@ -156,43 +156,33 @@ async function submitTweet(event) {
             body: JSON.stringify(tweetData)
         });
 
-        // Show success message
+        // Show success message based on the new response format
         statusElement.innerHTML = `
             <div class="alert alert-success">
-                Tweet processed successfully!
+                ${result.message}
             </div>
             <div class="tweet-card p-3 border bg-light">
                 <div class="d-flex justify-content-between">
-                    <strong>@${result.author_username}</strong>
-                    <small>${new Date(result.created_at).toLocaleString()}</small>
+                    <strong>@${tweetData.influencer_username}</strong>
+                    <small>${new Date().toLocaleString()}</small>
                 </div>
-                <p>${formatTweetText(result.text)}</p>
+                <p>${formatTweetText(tweetData.text)}</p>
                 <div class="text-muted">
                     <small>ID: ${result.tweet_id}</small> |
-                    <span>♻️ ${result.retweet_count}</span> |
-                    <span>❤️ ${result.like_count}</span>
+                    <span>♻️ ${tweetData.retweet_count}</span> |
+                    <span>❤️ ${tweetData.like_count}</span>
                 </div>
             </div>
         `;
 
-        // Display token mentions if available
-        if (result.token_mentions && result.token_mentions.length > 0) {
-            const mentionsPanel = document.getElementById('token-mentions-panel');
-            const mentionsList = document.getElementById('token-mentions-list');
-
-            mentionsPanel.classList.remove('d-none');
-            mentionsList.innerHTML = '';
-
-            result.token_mentions.forEach(mention => {
-                const li = document.createElement('li');
-                li.className = 'list-group-item';
-                li.textContent = mention;
-                mentionsList.appendChild(li);
-            });
+        // Hide token mentions panel since tokens will be processed asynchronously
+        const mentionsPanel = document.getElementById('token-mentions-panel');
+        if (mentionsPanel) {
+            mentionsPanel.classList.add('d-none');
         }
 
         // Add to activity log if we're on the dashboard
-        addActivityLog(`Manual tweet added: ${tweetData.text.substring(0, 30)}...`, 'success');
+        addActivityLog(`Tweet submitted: ${tweetData.text.substring(0, 30)}...`, 'success');
     } catch (error) {
         console.error('Failed to submit tweet:', error);
 
@@ -211,6 +201,8 @@ async function submitTweet(event) {
  * @returns {string} - Formatted HTML
  */
 function formatTweetText(text) {
+    if (!text) return '';
+
     // Highlight cashtags
     let formatted = text.replace(/\$([A-Za-z0-9]+)/g, '<span class="cashtag">$$$1</span>');
 
