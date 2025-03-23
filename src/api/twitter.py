@@ -460,9 +460,10 @@ async def add_manual_tweet_endpoint(
     logger.info(f"Manual tweet addition for influencer {tweet.influencer_username}")
 
     try:
-        # Извикваме съществуващата функционалност за добавяне на ръчен туит
-        # от src/data_collection/tasks/twitter_tasks.py
-        success = add_manual_tweet(
+        # Използваме директно асинхронната функция
+        from src.data_collection.tasks.twitter_tasks import _async_add_manual_tweet
+
+        success = await _async_add_manual_tweet(
             influencer_username=tweet.influencer_username,
             tweet_text=tweet.text,
             created_at=tweet.created_at,
