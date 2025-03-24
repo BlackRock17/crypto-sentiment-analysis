@@ -63,4 +63,6 @@ docker ps - намиране на контейнер
 docker logs 9cdf1707463f | Select-String "username:"   -- WINDOWS
 docker logs <container_id> | grep "username:"          -- LINUX
 
+uvicorn src.main:app --reload --port 8000
+
 
