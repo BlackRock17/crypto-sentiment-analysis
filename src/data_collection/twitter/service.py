@@ -115,7 +115,7 @@ class TwitterCollectionService:
             tweet_id: Optional[str] = None,
             retweet_count: int = 0,
             like_count: int = 0
-    ) -> Tuple[Optional[Tweet], int]:
+    ) -> Tuple[Optional[Dict[str, Any]], int]:
         """
         Manually add a tweet for an influencer and send to Kafka for processing.
 
@@ -128,46 +128,9 @@ class TwitterCollectionService:
             like_count: Number of likes
 
         Returns:
-            Tuple of (stored_tweet, mentions_count)
+            Tuple of (tweet_data, mentions_count)
         """
-        # ДОБАВЕНО: Опростена логика за тестови режим
-        if twitter_config.is_test_mode:
-            logger.info(f"Test mode: Creating mock tweet for {influencer_username}")
-
-            # Генерирай tweet_id ако не е подаден
-            if not tweet_id:
-                import uuid
-                tweet_id = f"manual_{uuid.uuid4().hex}"
-
-            # Създай примерен Tweet обект за връщане
-            tweet = Tweet(
-                tweet_id=tweet_id,
-                text=tweet_text,
-                created_at=created_at or datetime.utcnow(),
-                author_id=f"user_{influencer_username}",
-                author_username=influencer_username,
-                retweet_count=retweet_count,
-                like_count=like_count
-            )
-
-            # Изпрати към Kafka (или симулирай изпращане)
-            tweet_data = {
-                "tweet_id": tweet_id,
-                "text": tweet_text,
-                "created_at": (created_at or datetime.utcnow()).isoformat(),
-                "author_id": f"user_{influencer_username}",
-                "author_username": influencer_username,
-                "retweet_count": retweet_count,
-                "like_count": like_count,
-                "is_manually_added": True
-            }
-
-            self.kafka_producer.send_tweet(tweet_data)
-            logger.info(f"Manual tweet sent to Kafka (simulated): {tweet_id}")
-
-            return tweet, 0
-
-        # Get or create influencer
+        # Проверяваме дали influencer съществува, за да вземем неговото ID
         influencer = get_influencer_by_username(self.db, influencer_username)
 
         if not influencer:
@@ -178,11 +141,12 @@ class TwitterCollectionService:
             logger.error(f"Failed to get or create influencer {influencer_username}")
             return None, 0
 
-        # Prepare tweet data
+        # Генерираме tweet_id ако не е подаден
         if not tweet_id:
             import uuid
             tweet_id = f"manual_{uuid.uuid4().hex}"
 
+        # Подготвяме данните
         tweet_data = {
             "tweet_id": tweet_id,
             "text": tweet_text,
@@ -191,43 +155,22 @@ class TwitterCollectionService:
             "author_username": influencer_username,
             "retweet_count": retweet_count,
             "like_count": like_count,
-            "influencer_id": influencer.id,
+            "influencer_id": influencer.id,  # Важно! Добави ID-то на influencer-а
             "influencer_username": influencer_username,
-            "is_manually_added": True  # Flag to indicate this is a manually added tweet
+            "is_manually_added": True
         }
 
-        # Send to Kafka for processing
+        # Изпрати към Kafka
         success = self.kafka_producer.send_tweet(tweet_data)
 
         if not success:
-            logger.error(f"Failed to send manual tweet to Kafka")
+            logger.error("Failed to send manual tweet to Kafka")
             return None, 0
-
-        # For backward compatibility, still return a Tweet object and placeholder mention count
-        # The actual processing will happen asynchronously through Kafka
-
-        # Create a placeholder tweet object to return
-        tweet = Tweet(
-            tweet_id=tweet_id,
-            text=tweet_text,
-            created_at=created_at or datetime.utcnow(),
-            author_id=f"user_{influencer_username}",
-            author_username=influencer_username,
-            retweet_count=retweet_count,
-            like_count=like_count
-        )
-
-        # Add a record for influencer-tweet association
-        create_influencer_tweet(
-            db=self.db,
-            influencer_id=influencer.id,
-            tweet_id=tweet.id if tweet.id else 0,  # Use placeholder ID if needed
-            is_manually_added=True
-        )
 
         logger.info(f"Manual tweet sent to Kafka for processing: {tweet_id}")
 
-        return tweet, 0  # Return 0 mentions since actual processing happens via Kafka
+        # Връщаме tweet_data и placeholder за броя на токените
+        return tweet_data, 0  # Токените ще бъдат обработени асинхронно от консуматорите
 
     def _process_and_store_tweet(
             self,
