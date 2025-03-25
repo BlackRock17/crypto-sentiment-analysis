@@ -42,7 +42,7 @@ class TwitterAPIClient:
         self.db = db
         self.client = self._create_client()
 
-        self.config.is_test_mode = True
+        self.config.is_test_mode = False
 
         logger.info("Twitter API client initialized")
 
