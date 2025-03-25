@@ -105,13 +105,13 @@ async def _async_add_manual_tweet(
         service = TwitterCollectionService(db)
 
         # Add manual tweet via Kafka
-        stored_tweet, _ = service.add_manual_tweet(
+        tweet_data, _ = service.add_manual_tweet(
             influencer_username=influencer_username,
             tweet_text=tweet_text,
             **kwargs
         )
 
-        if not stored_tweet:
+        if not tweet_data:
             logger.error(f"Failed to add manual tweet for {influencer_username}")
             return False
 
