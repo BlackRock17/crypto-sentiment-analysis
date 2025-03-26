@@ -299,44 +299,21 @@ class TwitterDataProcessor:
         Returns:
             Tuple of (network_name, confidence) or (None, 0) if no network could be determined
         """
-        # If we have detected networks with high confidence, use those
+        # Ако имаме мрежи с висока увереност, използваме тях
         high_confidence_networks = {net: conf for net, conf in detected_networks.items() if conf >= 0.6}
         if high_confidence_networks:
-            # Use the network with the highest confidence
+            # Използваме мрежата с най-висока увереност
             network = max(high_confidence_networks.items(), key=lambda x: x[1])
             return network
 
-        # For tokens with specific prefixes or properties that strongly indicate a network
-        if len(symbol) >= 3:
-            # Check for Solana token patterns (often have uppercase names)
-            if symbol.isupper() and len(symbol) <= 5:
-                return "solana", 0.3
-
-            # Check for Ethereum token patterns (often start with "0x")
-            if symbol.startswith("0x"):
-                return "ethereum", 0.4
-
-            # Check for Binance Smart Chain patterns (often have "BNB" or "BSC" in context)
-            if "bnb" in text_context or "bsc" in text_context or "binance smart chain" in text_context:
-                return "binance", 0.4
-
-            # Check for Polygon (MATIC) tokens
-            if "polygon" in text_context or "matic" in text_context:
-                return "polygon", 0.3
-
-            # Check for Ethereum token patterns (often have "ETH" in context)
-            eth_indicators = ["ethereum", "eth ", "on eth", "eth blockchain"]
-            if any(indicator in text_context for indicator in eth_indicators):
-                return "ethereum", 0.3
-
-        # If we have any detected networks, use the one with highest confidence
+        # Ако имаме някакви мрежи, използваме тази с най-висока увереност
         if detected_networks:
             network = max(detected_networks.items(), key=lambda x: x[1])
-            # Only return if there's at least some confidence
+            # Връщаме само ако има поне малко увереност
             if network[1] >= 0.2:
                 return network
 
-        # Default to no determined network
+        # По подразбиране - без определена мрежа
         return None, 0.0
 
     def prepare_tweet_for_storage(self, tweet_data: Dict[str, Any]) -> Dict[str, Any]:
