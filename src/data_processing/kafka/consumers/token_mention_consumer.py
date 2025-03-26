@@ -10,8 +10,9 @@ from src.data_processing.kafka.consumer import KafkaConsumer
 from src.data_processing.kafka.config import TOPICS
 from src.data_collection.twitter.repository import TwitterRepository
 from src.data_processing.database import get_db
-from src.data_processing.kafka.producer import SentimentProducer
+from src.data_processing.kafka.producer import SentimentProducer, TokenCategoryProducer
 from src.data_processing.crud.read import get_tweet_by_id
+from src.data_processing.models import BlockchainToken
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class TokenMentionConsumer(KafkaConsumer):
             auto_commit=False
         )
         self.sentiment_producer = SentimentProducer()
+        self.token_category_producer = TokenCategoryProducer()
 
     def handle_message(self, message):
         """
@@ -76,6 +78,23 @@ class TokenMentionConsumer(KafkaConsumer):
                 if not token_mentions:
                     logger.error(f"Failed to store token mention for tweet {tweet_id}")
                     return False
+
+                for mention in token_mentions:
+                    token = repository.db.query(BlockchainToken).filter(BlockchainToken.id == mention.token_id).first()
+
+                    # Проверяваме дали токенът се нуждае от категоризация
+                    needs_categorization = (
+                            token.blockchain_network is None or
+                            (
+                                        token.network_confidence is not None and token.network_confidence < 0.7 and not token.manually_verified)
+                    )
+
+                    if needs_categorization:
+                        logger.info(f"Sending token {token.symbol} (ID: {token.id}) for categorization")
+                        try:
+                            self.token_category_producer.send_categorization_task(token_id=token.id)
+                        except Exception as e:
+                            logger.error(f"Error sending token for categorization: {e}")
 
                 # For each stored mention, send for sentiment analysis
                 for mention in token_mentions:
