@@ -62,6 +62,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error creating Kafka topics: {e}")
 
+    try:
+        from scripts.seed_blockchain_networks import seed_blockchain_networks
+        seed_blockchain_networks()
+        logger.info("Blockchain networks checked")
+    except Exception as e:
+        logger.error(f"Error checking blockchain networks: {e}")
+
     # Set up and start scheduler
     scheduler = setup_scheduler()
 
