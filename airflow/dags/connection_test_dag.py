@@ -5,10 +5,12 @@ import sys
 import os
 
 # Добавяме пътя към директорията с помощни функции
-sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
+dags_folder = os.path.dirname(os.path.abspath(__file__))
+utils_path = os.path.join(dags_folder, 'utils')
+sys.path.append(utils_path)
 
 # Импортираме помощните функции
-from airflow.dags.utils.helpers import check_db_connection, check_kafka_connection
+from helpers import check_db_connection, check_kafka_connection
 
 default_args = {
     'owner': 'airflow',

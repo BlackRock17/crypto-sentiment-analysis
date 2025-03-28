@@ -35,7 +35,9 @@ def get_db_connection_params() -> Dict[str, Any]:
     Returns:
         Dict: Речник с параметри за връзка
     """
-    DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:password@db:5432/solana_sentiment')
+    DATABASE_URL = os.getenv('PROJECT_DATABASE_URL', 'postgresql://username:password@localhost:5432/crypto_sentiment')
+
+    print(f"DATABASE_URL: {DATABASE_URL}")
 
     # Разбиване на URL на компоненти
     if 'postgresql://' in DATABASE_URL:
@@ -55,9 +57,9 @@ def get_db_connection_params() -> Dict[str, Any]:
         return {
             'user': 'postgres',
             'password': 'password',
-            'host': 'db',
+            'host': 'postgres',
             'port': '5432',
-            'database': 'solana_sentiment'
+            'database': 'crypto_sentiment'
         }
 
 
