@@ -1,29 +1,86 @@
-version: '3'
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.7.1-python3.11
+  environment:
+    - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+    - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql://airflow:airflow@postgres-airflow:5432/airflow
+    - AIRFLOW__CORE__LOAD_EXAMPLES=false
+    - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
+    - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_SECRET_KEY:-supersecretkey}
+    - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY:-9xRsMCQzRn-lMEfiU2FwiegkQPDSu7bh5KACp1Cd0Bk=}
+    # Добавяме променлива за допълнителни пакети, която Airflow автоматично ще инсталира
+    - _PIP_ADDITIONAL_REQUIREMENTS=confluent-kafka sqlalchemy psycopg2-binary python-dotenv pydantic matplotlib pandas tweepy
+    # Връзка към основната база данни за DAG-овете
+    - PROJECT_DATABASE_URL=postgresql://postgres:password@host.docker.internal:5432/crypto_sentiment
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./src:/opt/airflow/src
+    - ./config:/opt/airflow/config
+  networks:
+    - airflow_network
+    - docker_kafka-network
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
 services:
-  airflow:
-    image: apache/airflow:2.7.1-python3.11
-    restart: always
+  postgres-airflow:
+    image: postgres:14
     environment:
-      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - PYTHONPATH=/opt/airflow:/opt/airflow/src
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - postgres-airflow-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - airflow_network
+    restart: always
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
     ports:
       - "8080:8080"
-    volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./src:/opt/airflow/src
-      - ./config:/opt/airflow/config
-    command: >
-      bash -c "pip install confluent-kafka sqlalchemy psycopg2-binary python-dotenv pydantic &&
-              echo 'Инсталирани необходими пакети' &&
-              ls -la /opt/airflow/src &&
-              PYTHONPATH=/opt/airflow airflow standalone"
-    networks:
-      - default
-      - docker_kafka-network
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      - postgres-airflow
+      - airflow-init
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+    depends_on:
+      - postgres-airflow
+      - airflow-init
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command: |
+      -c "
+      airflow db init &&
+      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+      echo 'Airflow initialization complete!'
+      "
+    depends_on:
+      - postgres-airflow
+    restart: on-failure
+
+volumes:
+  postgres-airflow-data:
 
 networks:
-  default:
+  airflow_network:
     driver: bridge
   docker_kafka-network:
     external: true
