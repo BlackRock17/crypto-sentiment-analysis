@@ -88,7 +88,7 @@ def check_kafka_topics_health() -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: Информация за състоянието на топиците
     """
-    from src.data_processing.kafka.config import TOPICS, DEFAULT_BOOTSTRAP_SERVERS
+    from kafka_config import TOPICS, DEFAULT_BOOTSTRAP_SERVERS
 
     # Резултати от проверката
     results = {
