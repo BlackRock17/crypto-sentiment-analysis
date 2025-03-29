@@ -14,14 +14,17 @@ from airflow.operators.python import PythonOperator
 # Конфигуриране на логър
 logger = logging.getLogger(__name__)
 
-# Добавяне на utils директорията към Python path
-dags_folder = os.path.dirname(os.path.abspath(__file__))
-utils_path = os.path.join(dags_folder, 'utils')
-sys.path.append(utils_path)
+airflow_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # /opt/airflow
+sys.path.append(airflow_dir)
 
-# Добавяне на главната директория на проекта към Python path
-project_root = os.path.abspath(os.path.join(dags_folder, '..', '..'))
-sys.path.append(project_root)
+# # Добавяне на utils директорията към Python path
+# dags_folder = os.path.dirname(os.path.abspath(__file__))
+# utils_path = os.path.join(dags_folder, 'utils')
+# sys.path.append(utils_path)
+#
+# # Добавяне на главната директория на проекта към Python path
+# project_root = os.path.abspath(os.path.join(dags_folder, '..', '..'))
+# sys.path.append(project_root)
 
 # Стандартни аргументи за DAG-а
 default_args = {
@@ -129,15 +132,15 @@ with DAG(
                 try:
                     from src.data_processing.database import get_db
                     from src.services.notification_service import NotificationService
+                    from src.data_processing.models.notifications import NotificationPriority
 
                     db = next(get_db())
                     try:
                         notification_service = NotificationService(db)
-                        notification_service.create_notification(
-                            type="system",
+                        notification_service.create_system_notification(
                             title="Грешка при категоризация на токени",
                             message=f"Процесът на категоризация завърши с грешка: {error_message}",
-                            priority="high"
+                            priority=NotificationPriority.HIGH
                         )
                     finally:
                         db.close()
@@ -174,15 +177,15 @@ with DAG(
                 try:
                     from src.data_processing.database import get_db
                     from src.services.notification_service import NotificationService
+                    from src.data_processing.models.notifications import NotificationPriority
 
                     db = next(get_db())
                     try:
                         notification_service = NotificationService(db)
-                        notification_service.create_notification(
-                            type="system",
+                        notification_service.create_system_notification(
                             title="Категоризация на токени завършена",
                             message=f"Обработени {tokens_processed} токени, {tokens_with_high_confidence} с високо ниво на доверие",
-                            priority="medium",
+                            priority=NotificationPriority.MEDIUM,
                             metadata={
                                 "tokens_processed": tokens_processed,
                                 "tokens_with_recommendation": tokens_with_recommendation,
