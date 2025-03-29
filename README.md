@@ -37,6 +37,17 @@ An advanced system for analyzing social media sentiment around cryptocurrency to
 ## Project Structure
 ```
 crypto_sentiment/
+├── airflow/
+│   ├── dags/
+│   │   ├── utils/
+│   │   │   ├── db_utils.py
+│   │   │   ├── helpers.py
+│   │   │   ├── kafka_config.py
+│   │   │   ├── kafka_utils.py
+│   │   ├── infrastructure_monitor_dag.py
+│   │   ├── token_categorization_dag.py
+│   ├── logs/
+│   ├── plugins/ 
 ├── alembic/
 │   ├── versions/
 │   │   ├── d2361f92dba1_initial_migration.py
