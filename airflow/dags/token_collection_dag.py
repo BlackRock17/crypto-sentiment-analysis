@@ -83,38 +83,57 @@ with DAG(
             processed_tweets = 0
             total_tweets = random.randint(5, 15)  # Генерираме между 5 и 15 туита
 
-            for i in range(total_tweets):
-                influencer = random.choice(influencers)
-                template = random.choice(tweet_templates)
+            # test
+            influencer = random.choice(influencers)
+            template = random.choice(tweet_templates)
+            token1 = random.choice(tokens)
+            token2 = random.choice([t for t in tokens if t != token1])
+            hashtag = random.choice(hashtags)
+            text = template.replace("TOKEN1", token1).replace("TOKEN2", token2).replace("HASHTAG", hashtag)
+            tweet_id = f"mock_{random.randint(10000, 99999)}"
 
-                # Заместване на токени и хештагове
-                token1 = random.choice(tokens)
-                token2 = random.choice([t for t in tokens if t != token1])
-                hashtag = random.choice(hashtags)
+            success = _async_add_manual_tweet(
+                influencer_username=influencer["username"],
+                tweet_text=text,
+                created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24)),
+                tweet_id=tweet_id,
+                retweet_count=random.randint(0, 100),
+                like_count=random.randint(10, 500)
+            )
+            logger.info(f"Успешно добавен симулиран туит 1 {success}...2'")
 
-                text = template.replace("TOKEN1", token1).replace("TOKEN2", token2).replace("HASHTAG", hashtag)
-
-                # Генериране на tweet_id
-                tweet_id = f"mock_{random.randint(10000, 99999)}"
-
-                # Добавяне на туита чрез стандартния път
-                success = loop.run_until_complete(_async_add_manual_tweet(
-                    influencer_username=influencer["username"],
-                    tweet_text=text,
-                    created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24)),
-                    tweet_id=tweet_id,
-                    retweet_count=random.randint(0, 100),
-                    like_count=random.randint(10, 500)
-                ))
-
-                if success:
-                    processed_tweets += 1
-                    logger.info(f"Успешно добавен симулиран туит {i + 1}/{total_tweets}: '{text[:50]}...'")
-                else:
-                    logger.warning(f"Неуспешно добавяне на симулиран туит {i + 1}/{total_tweets}")
-
-            # Затваряме loop-а
-            loop.close()
+            # for i in range(total_tweets):
+            #     influencer = random.choice(influencers)
+            #     template = random.choice(tweet_templates)
+            #
+            #     # Заместване на токени и хештагове
+            #     token1 = random.choice(tokens)
+            #     token2 = random.choice([t for t in tokens if t != token1])
+            #     hashtag = random.choice(hashtags)
+            #
+            #     text = template.replace("TOKEN1", token1).replace("TOKEN2", token2).replace("HASHTAG", hashtag)
+            #
+            #     # Генериране на tweet_id
+            #     tweet_id = f"mock_{random.randint(10000, 99999)}"
+            #
+            #     # Добавяне на туита чрез стандартния път
+            #     success = loop.run_until_complete(_async_add_manual_tweet(
+            #         influencer_username=influencer["username"],
+            #         tweet_text=text,
+            #         created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24)),
+            #         tweet_id=tweet_id,
+            #         retweet_count=random.randint(0, 100),
+            #         like_count=random.randint(10, 500)
+            #     ))
+            #
+            #     if success:
+            #         processed_tweets += 1
+            #         logger.info(f"Успешно добавен симулиран туит {i + 1}/{total_tweets}: '{text[:50]}...'")
+            #     else:
+            #         logger.warning(f"Неуспешно добавяне на симулиран туит {i + 1}/{total_tweets}")
+            #
+            # # Затваряме loop-а
+            # loop.close()
 
             return {
                 "generated_tweets": total_tweets,
