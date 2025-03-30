@@ -1,10 +1,18 @@
 """
 Kafka configuration module for centralized Kafka settings.
 """
+import os
 from typing import Dict, Any, Optional
 
 # Default Kafka broker configuration
-DEFAULT_BOOTSTRAP_SERVERS = "localhost:29092"
+# Проверяваме дали сме в Docker среда (с помощта на env променлива)
+IN_DOCKER = os.environ.get('IN_DOCKER', 'false').lower() == 'true'
+
+# Задаваме bootstrap сървъра според средата
+if IN_DOCKER:
+    DEFAULT_BOOTSTRAP_SERVERS = "kafka:9092"  # В Docker мрежата
+else:
+    DEFAULT_BOOTSTRAP_SERVERS = "localhost:29092"  # На хост машината
 
 # Topic names
 TOPICS = {
