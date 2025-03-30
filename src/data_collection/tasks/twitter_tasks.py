@@ -159,3 +159,35 @@ def add_manual_tweet(
         ))
     finally:
         loop.close()
+
+
+def sync_add_manual_tweet(
+        influencer_username: str,
+        tweet_text: str,
+        **kwargs
+) -> bool:
+    """
+    Синхронен вариант на добавяне на ръчен туит, който вътрешно използва
+    асинхронната функция _async_add_manual_tweet.
+
+    Args:
+        influencer_username: Twitter username на инфлуенсъра
+        tweet_text: Текст на туита
+        **kwargs: Допълнителни параметри на туита
+
+    Returns:
+        True ако е успешно, False иначе
+    """
+    import asyncio
+
+    # Създаваме нов event loop за тази задача
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(_async_add_manual_tweet(
+            influencer_username=influencer_username,
+            tweet_text=tweet_text,
+            **kwargs
+        ))
+    finally:
+        loop.close()
