@@ -66,4 +66,10 @@ docker logs <container_id> | grep "username:"          -- LINUX
 
 uvicorn src.main:app --reload --port 8000
 
+# Спиране и изтриване на Kafka стека, включително волюмите
+docker-compose -f deployment/docker/docker-compose.kafka.yml down -v
+
+# Стартиране отново
+docker-compose -f deployment/docker/docker-compose.kafka.yml up -d
+
 

@@ -46,14 +46,14 @@ with DAG(
     # Функция за генериране на симулирани туитове
     def generate_mock_tweets(**kwargs):
         """
-        Генерира симулирани туитове, които могат да се използват за тестване на системата.
+        Генерира симулирани туитове и ги добавя чрез стандартния път за обработка.
         """
         try:
             # Симулирани потребители и техни данни
             influencers = [
-                {"username": "crypto_expert", "id": 1},
-                {"username": "blockchain_news", "id": 2},
-                {"username": "coin_analyst", "id": 3}
+                {"username": "crypto_expert"},
+                {"username": "blockchain_news"},
+                {"username": "coin_analyst"}
             ]
 
             # Токени за споменаване
@@ -71,9 +71,19 @@ with DAG(
                 "Market sentiment for $TOKEN1 is changing. Stay tuned! #HASHTAG"
             ]
 
-            # Генериране на мок туитове
-            mock_tweets = []
-            for _ in range(random.randint(5, 15)):  # Генерираме между 5 и 15 туита
+            # Функция за добавяне на туит чрез стандартния път
+            from src.data_collection.tasks.twitter_tasks import _async_add_manual_tweet
+            import asyncio
+
+            # Създаваме нов event loop
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            # Генериране и добавяне на мок туитове
+            processed_tweets = 0
+            total_tweets = random.randint(5, 15)  # Генерираме между 5 и 15 туита
+
+            for i in range(total_tweets):
                 influencer = random.choice(influencers)
                 template = random.choice(tweet_templates)
 
@@ -84,63 +94,36 @@ with DAG(
 
                 text = template.replace("TOKEN1", token1).replace("TOKEN2", token2).replace("HASHTAG", hashtag)
 
-                # Създаване на симулиран туит
-                tweet = {
-                    "tweet_id": f"mock_{random.randint(10000, 99999)}",
-                    "text": text,
-                    "created_at": (datetime.utcnow() - timedelta(hours=random.randint(1, 24))).isoformat(),
-                    "author_id": str(influencer["id"]),
-                    "author_username": influencer["username"],
-                    "retweet_count": random.randint(0, 100),
-                    "like_count": random.randint(10, 500),
-                    "influencer_id": influencer["id"],
-                    "cashtags": [token1, token2],
-                    "hashtags": [hashtag]
-                }
+                # Генериране на tweet_id
+                tweet_id = f"mock_{random.randint(10000, 99999)}"
 
-                mock_tweets.append(tweet)
+                # Добавяне на туита чрез стандартния път
+                success = loop.run_until_complete(_async_add_manual_tweet(
+                    influencer_username=influencer["username"],
+                    tweet_text=text,
+                    created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24)),
+                    tweet_id=tweet_id,
+                    retweet_count=random.randint(0, 100),
+                    like_count=random.randint(10, 500)
+                ))
 
-            # Запазване на мок данните
-            mock_filename = MOCK_DATA_DIR / f"mock_tweets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            with open(mock_filename, 'w') as f:
-                json.dump(mock_tweets, f, indent=2)
+                if success:
+                    processed_tweets += 1
+                    logger.info(f"Успешно добавен симулиран туит {i + 1}/{total_tweets}: '{text[:50]}...'")
+                else:
+                    logger.warning(f"Неуспешно добавяне на симулиран туит {i + 1}/{total_tweets}")
 
-            # Използване на съществуващия код за обработка
-            try:
-                from src.data_processing.database import get_db
-                from src.data_processing.kafka.producer import TwitterProducer
+            # Затваряме loop-а
+            loop.close()
 
-                # Инициализация на Kafka producer
-                producer = TwitterProducer()
-
-                # Изпращане на туитовете към Kafka
-                sent_count = 0
-                for tweet in mock_tweets:
-                    success = producer.send_tweet(tweet)
-                    if success:
-                        sent_count += 1
-
-                logger.info(f"Успешно изпратени {sent_count} от {len(mock_tweets)} симулирани туита към Kafka")
-
-                return {
-                    "generated_tweets": len(mock_tweets),
-                    "sent_to_kafka": sent_count,
-                    "mock_file": str(mock_filename)
-                }
-
-            except ImportError as e:
-                logger.warning(f"Не може да се импортира модул: {e}")
-                logger.info(f"Генерирани {len(mock_tweets)} мок туита, запазени в {mock_filename}")
-                return {
-                    "generated_tweets": len(mock_tweets),
-                    "sent_to_kafka": 0,
-                    "mock_file": str(mock_filename)
-                }
+            return {
+                "generated_tweets": total_tweets,
+                "processed_tweets": processed_tweets
+            }
 
         except Exception as e:
             logger.error(f"Грешка при генериране на мок туитове: {e}")
             return {"error": str(e)}
-
 
     # Задача за генериране на симулирани туитове
     generate_tweets_task = PythonOperator(
@@ -157,11 +140,10 @@ with DAG(
         result = ti.xcom_pull(task_ids='generate_mock_tweets')
 
         if result and not "error" in result:
-            logger.info(f"Успешно генериране: {result['generated_tweets']} туита")
-            logger.info(f"Изпратени към Kafka: {result['sent_to_kafka']} туита")
-            logger.info(f"Запазени в: {result['mock_file']}")
+            logger.info(f"Успешно генериране: {result.get('generated_tweets', 0)} туита")
+            logger.info(f"Изпратени към Kafka: {result.get('processed_tweets', 0)} туита")
 
-            return f"Генерирани {result['generated_tweets']} симулирани туита"
+            return f"Генерирани {result.get('generated_tweets', 0)} симулирани туита, обработени {result.get('processed_tweets', 0)}"
         else:
             error = result.get("error", "Неизвестна грешка")
             logger.error(f"Неуспешно генериране: {error}")

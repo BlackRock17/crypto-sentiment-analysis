@@ -1,7 +1,7 @@
 #version: '3.8'
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.7.1-python3.11
+  image: apache/airflow:2.10.5-python3.11
   environment:
     - AIRFLOW__CORE__EXECUTOR=LocalExecutor
     - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql://airflow:airflow@postgres-airflow:5432/airflow
@@ -12,7 +12,7 @@ x-airflow-common: &airflow-common
     - IN_DOCKER=true
     - PYTHONPATH=/opt/airflow
     # Добавяме променлива за допълнителни пакети, която Airflow автоматично ще инсталира
-    - _PIP_ADDITIONAL_REQUIREMENTS=confluent-kafka sqlalchemy psycopg2-binary python-dotenv pydantic matplotlib pandas tweepy scipy
+    - _PIP_ADDITIONAL_REQUIREMENTS=confluent-kafka sqlalchemy psycopg2-binary python-dotenv pydantic pydantic-settings matplotlib pandas tweepy scipy
     # Връзка към основната база данни за DAG-овете
     - PROJECT_DATABASE_URL=postgresql://postgres:password@host.docker.internal:5432/crypto_sentiment
   volumes:
