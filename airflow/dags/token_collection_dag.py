@@ -49,6 +49,7 @@ with DAG(
         Генерира симулирани туитове и ги добавя чрез стандартния път за обработка.
         """
         try:
+            from src.data_collection.tasks.twitter_tasks import sync_add_manual_tweet
             # Симулирани потребители и техни данни
             influencers = [
                 {"username": "crypto_expert"},
@@ -71,78 +72,63 @@ with DAG(
                 "Market sentiment for $TOKEN1 is changing. Stay tuned! #HASHTAG"
             ]
 
-            # Функция за добавяне на туит чрез стандартния път
-            from src.data_collection.tasks.twitter_tasks import _async_add_manual_tweet
-            import asyncio
+            # Генериране на мок туитове (променяме на 1 заради теста)
+            mock_tweets_count = 1  # За тестване - само 1 туит
+            sent_count = 0
+            failed_count = 0
 
-            # Създаваме нов event loop
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            for _ in range(mock_tweets_count):
+                influencer = random.choice(influencers)
+                template = random.choice(tweet_templates)
 
-            # Генериране и добавяне на мок туитове
-            processed_tweets = 0
-            total_tweets = random.randint(5, 15)  # Генерираме между 5 и 15 туита
+                # Заместване на токени и хештагове
+                token1 = random.choice(tokens)
+                token2 = random.choice([t for t in tokens if t != token1])
+                hashtag = random.choice(hashtags)
 
-            # test
-            influencer = random.choice(influencers)
-            template = random.choice(tweet_templates)
-            token1 = random.choice(tokens)
-            token2 = random.choice([t for t in tokens if t != token1])
-            hashtag = random.choice(hashtags)
-            text = template.replace("TOKEN1", token1).replace("TOKEN2", token2).replace("HASHTAG", hashtag)
-            tweet_id = f"mock_{random.randint(10000, 99999)}"
+                text = template.replace("TOKEN1", token1).replace("TOKEN2", token2).replace("HASHTAG", hashtag)
 
-            success = _async_add_manual_tweet(
-                influencer_username=influencer["username"],
-                tweet_text=text,
-                created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24)),
-                tweet_id=tweet_id,
-                retweet_count=random.randint(0, 100),
-                like_count=random.randint(10, 500)
-            )
-            logger.info(f"Успешно добавен симулиран туит 1 {success}...2'")
+                # Създаване на метаданни за туита
+                tweet_id = f"mock_{random.randint(10000, 99999)}"
+                created_at = datetime.utcnow() - timedelta(hours=random.randint(1, 24))
+                retweet_count = random.randint(0, 100)
+                like_count = random.randint(10, 500)
 
-            # for i in range(total_tweets):
-            #     influencer = random.choice(influencers)
-            #     template = random.choice(tweet_templates)
-            #
-            #     # Заместване на токени и хештагове
-            #     token1 = random.choice(tokens)
-            #     token2 = random.choice([t for t in tokens if t != token1])
-            #     hashtag = random.choice(hashtags)
-            #
-            #     text = template.replace("TOKEN1", token1).replace("TOKEN2", token2).replace("HASHTAG", hashtag)
-            #
-            #     # Генериране на tweet_id
-            #     tweet_id = f"mock_{random.randint(10000, 99999)}"
-            #
-            #     # Добавяне на туита чрез стандартния път
-            #     success = loop.run_until_complete(_async_add_manual_tweet(
-            #         influencer_username=influencer["username"],
-            #         tweet_text=text,
-            #         created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 24)),
-            #         tweet_id=tweet_id,
-            #         retweet_count=random.randint(0, 100),
-            #         like_count=random.randint(10, 500)
-            #     ))
-            #
-            #     if success:
-            #         processed_tweets += 1
-            #         logger.info(f"Успешно добавен симулиран туит {i + 1}/{total_tweets}: '{text[:50]}...'")
-            #     else:
-            #         logger.warning(f"Неуспешно добавяне на симулиран туит {i + 1}/{total_tweets}")
-            #
-            # # Затваряме loop-а
-            # loop.close()
+                # Използваме синхронния вариант на add_manual_tweet
+                logger.info(f"Опит за добавяне на туит {tweet_id}")
+
+                # Важно: изпълняваме функцията директно, не запазваме корутината
+                success = sync_add_manual_tweet(
+                    influencer_username=influencer["username"],
+                    tweet_text=text,
+                    created_at=created_at,
+                    tweet_id=tweet_id,
+                    retweet_count=retweet_count,
+                    like_count=like_count
+                )
+
+                if success:
+                    sent_count += 1
+                    logger.info(f"Успешно добавен туит {tweet_id}")
+                else:
+                    failed_count += 1
+                    logger.warning(f"Неуспешно добавяне на туит {tweet_id}")
+
+            logger.info(f"Общо: генерирани {mock_tweets_count}, успешни {sent_count}, неуспешни {failed_count}")
 
             return {
-                "generated_tweets": total_tweets,
-                "processed_tweets": processed_tweets
+                "generated_tweets": mock_tweets_count,
+                "sent_to_kafka": sent_count,
+                "failed": failed_count
             }
 
         except Exception as e:
             logger.error(f"Грешка при генериране на мок туитове: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {"error": str(e)}
+
+
 
     # Задача за генериране на симулирани туитове
     generate_tweets_task = PythonOperator(
