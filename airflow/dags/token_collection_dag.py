@@ -73,7 +73,7 @@ with DAG(
             ]
 
             # Генериране на мок туитове (променяме на 1 заради теста)
-            mock_tweets_count = 1  # За тестване - само 1 туит
+            mock_tweets_count = 5  # За тестване - само 1 туит
             sent_count = 0
             failed_count = 0
 
