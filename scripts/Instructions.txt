@@ -8,10 +8,10 @@
 ## Стъпка 1: Стартиране на Kafka чрез Docker
 ```bash
 # Стартиране на Kafka и Zookeeper
-docker-compose -f deployment/docker/docker-compose.kafka.yml up -d
+docker compose -f deployment/docker/docker-compose.kafka.yml up -d
 
 # Проверка дали контейнерите работят
-docker-compose -f deployment/docker/docker-compose.kafka.yml ps
+docker compose -f deployment/docker/docker-compose.kafka.yml ps
 
 #-------------------------------------------------------------------------
 

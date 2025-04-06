@@ -173,6 +173,9 @@ class TwitterProducer(KafkaProducer):
             # Използваме глобално импортирания datetime модул
             tweet_data['timestamp'] = datetime.datetime.now().isoformat()
 
+        if 'created_at' in tweet_data and isinstance(tweet_data['created_at'], datetime.datetime):
+            tweet_data['created_at'] = tweet_data['created_at'].isoformat()
+
         # Use tweet_id as the message key if available for partitioning
         key = str(tweet_data.get('tweet_id', '')) or None
 

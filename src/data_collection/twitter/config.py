@@ -50,7 +50,7 @@ class TwitterConfig(BaseSettings):
 
     # Tweet retrieval settings
     search_languages: List[str] = ["en"]  # Default to English tweets
-    max_tweets_per_user: int = 10  # Maximum number of tweets from one user
+    max_tweets_per_user: int = 5  # Maximum number of tweets from one user
 
     # Rate limiting settings
     rate_limit_window: int = 15  # minutes

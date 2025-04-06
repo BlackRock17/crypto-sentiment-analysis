@@ -135,9 +135,11 @@ async def run_collection_tasks():
     success = await _async_collect_automated_tweets()
     logger.info(f"Резултат от _async_collect_automated_tweets: {'Успех' if success else 'Грешка'}")
 
-    # Събиране на туитове чрез синхронната обвивка
-    success = collect_automated_tweets()
-    logger.info(f"Резултат от collect_automated_tweets: {'Успех' if success else 'Грешка'}")
+    twitter_config.is_test_mode = True
+
+    # # Събиране на туитове чрез синхронната обвивка
+    # success = collect_automated_tweets()
+    # logger.info(f"Резултат от collect_automated_tweets: {'Успех' if success else 'Грешка'}")
 
     return success
 

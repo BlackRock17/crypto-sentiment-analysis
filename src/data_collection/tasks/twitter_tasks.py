@@ -63,9 +63,9 @@ def collect_automated_tweets() -> bool:
         True if collection was successful, False otherwise
     """
     # If in test mode, simply return success to allow tests to pass
-    if twitter_config.is_test_mode:
-        logger.info("Test mode: Simulating successful automated tweet collection")
-        return True
+    # if twitter_config.is_test_mode:
+    #     logger.info("Test mode: Simulating successful automated tweet collection")
+    #     return True
 
     # Validate Twitter credentials
     if not validate_twitter_credentials():
