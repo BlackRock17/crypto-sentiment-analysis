@@ -166,7 +166,6 @@ async def main():
         logger.error(traceback.format_exc())
 
 
-# Изпълнение на главната функция
 if __name__ == "__main__":
     # За работа с асинхронни функции, създаваме event loop
     asyncio.run(main())
