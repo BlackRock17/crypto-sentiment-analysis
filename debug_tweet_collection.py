@@ -12,6 +12,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 from datetime import datetime
 
 # Настройване на logger
@@ -31,9 +32,12 @@ from src.data_processing.database import get_db
 from src.data_collection.twitter.config import twitter_config
 from src.data_collection.twitter.client import TwitterAPIClient
 from src.data_collection.twitter.service import TwitterCollectionService
-from src.data_collection.tasks.twitter_tasks import collect_automated_tweets, _async_collect_automated_tweets
-from src.data_processing.models.twitter import TwitterInfluencer
+from src.data_collection.tasks.twitter_tasks import _async_collect_automated_tweets
 from src.data_processing.crud.twitter import create_influencer, get_influencer_by_username, get_all_influencers
+# Импортиране на Kafka консуматори
+from src.data_processing.kafka.consumers.tweet_consumer import TweetConsumer
+from src.data_processing.kafka.consumers.token_mention_consumer import TokenMentionConsumer
+from src.data_processing.kafka.consumers.sentiment_consumer import SentimentConsumer
 
 
 # Функция за проверка и създаване на тестови инфлуенсъри
@@ -126,20 +130,14 @@ async def run_collection_tasks():
     """
     Тества логиката чрез задачите в twitter_tasks.py.
     """
-    logger.info("Тестване на collect_automated_tweets...")
+    logger.info("Тестване на _async_collect_automated_tweets...")
 
     # Настройване на тестов режим
     twitter_config.is_test_mode = True
 
-    # Събиране на туитове директно
+    # Събиране на туитове директно чрез асинхронната функция
     success = await _async_collect_automated_tweets()
     logger.info(f"Резултат от _async_collect_automated_tweets: {'Успех' if success else 'Грешка'}")
-
-    twitter_config.is_test_mode = True
-
-    # # Събиране на туитове чрез синхронната обвивка
-    # success = collect_automated_tweets()
-    # logger.info(f"Резултат от collect_automated_tweets: {'Успех' if success else 'Грешка'}")
 
     return success
 
@@ -148,7 +146,21 @@ async def run_collection_tasks():
 async def main():
     logger.info("Стартиране на дебъг скрипта за събиране на туитове...")
 
+    # Създаване на консуматори
+    tweet_consumer = TweetConsumer()
+    token_mention_consumer = TokenMentionConsumer()
+    sentiment_consumer = SentimentConsumer()
+
     try:
+        # Стартиране на консуматорите
+        logger.info("Стартиране на Kafka консуматорите...")
+        tweet_consumer.start()
+        token_mention_consumer.start()
+        sentiment_consumer.start()
+
+        # Малко изчакване за инициализация на консуматорите
+        await asyncio.sleep(2)
+
         # Проверка и създаване на тестови инфлуенсъри
         await ensure_test_influencers()
 
@@ -158,6 +170,11 @@ async def main():
         # Тестване на задачите
         success = await run_collection_tasks()
 
+        # Изчакване консуматорите да обработят съобщенията
+        # Това е МНОГО ВАЖНО - даваме време на консуматорите да прочетат и обработят съобщенията
+        logger.info("Изчакване 15 секунди консуматорите да обработят съобщенията...")
+        await asyncio.sleep(15)
+
         logger.info("Дебъг сесията завърши успешно!")
         logger.info(f"Събрани туитове: {tweets_collected}")
         logger.info(f"Статус на задачите: {'Успех' if success else 'Грешка'}")
@@ -166,6 +183,15 @@ async def main():
         logger.error(f"Грешка при дебъгване: {e}")
         import traceback
         logger.error(traceback.format_exc())
+    finally:
+        # Важно: Спиране на консуматорите накрая
+        logger.info("Спиране на Kafka консуматорите...")
+        tweet_consumer.stop()
+        token_mention_consumer.stop()
+        sentiment_consumer.stop()
+
+        # Изчакай малко консуматорите да спрат
+        await asyncio.sleep(2)
 
 
 if __name__ == "__main__":
