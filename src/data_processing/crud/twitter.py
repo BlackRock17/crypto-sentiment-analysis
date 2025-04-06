@@ -118,7 +118,7 @@ def get_all_influencers(
     return query.order_by(desc(TwitterInfluencer.priority)).offset(skip).limit(limit).all()
 
 
-def get_automated_influencers(db: Session, max_count: int = 3) -> list[Type[TwitterInfluencer]]:
+def get_automated_influencers(db: Session, max_count: int = 3) -> list[TwitterInfluencer]:
     """
     Get the top N influencers for automated collection.
 
