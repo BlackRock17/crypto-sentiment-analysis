@@ -11,9 +11,9 @@ from alembic import context
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Next, we import our models
-from src.data_processing.models.database import Base, BlockchainToken, BlockchainNetwork, SentimentEnum, Tweet, SentimentAnalysis, TokenMention
-from src.data_processing.models.auth import User, Token, ApiKey, PasswordReset
-from src.data_processing.models.twitter import TwitterInfluencer, TwitterInfluencerTweet, TwitterApiUsage
+from src.data_processing.models.database import (Base, SentimentEnum, Tweet,
+                                                 MarketSentiment, Token, TokenSentiment,
+                                                 Network, NetworkSentiment, Influencer)
 from config.settings import DATABASE_URL
 
 # this is the Alembic Config object
