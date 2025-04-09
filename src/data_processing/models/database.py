@@ -20,15 +20,21 @@ class Tweet(Base):
     created_at = Column(DateTime, nullable=False)
     collected_at = Column(DateTime, default=datetime.utcnow)
 
+    market_sentiment = relationship("MarketSentiment", back_populates="tweet", uselist=False, cascade="all, delete-orphan")
+    token_sentiments = relationship("TokenSentiment", back_populates="tweet", cascade="all, delete-orphan")
+    network_sentiments = relationship("NetworkSentiment", back_populates="tweet", cascade="all, delete-orphan")
+
 
 class MarketSentiment(Base):
     __tablename__ = "market_sentiment"
 
     id = Column(Integer, primary_key=True)
-    tweet_id = Column(String(50), nullable=False, index=True)
+    tweet_id = Column(Integer, ForeignKey("tweets.id"), nullable=False, index=True, unique=True)
     sentiment = Column(Enum(SentimentEnum), nullable=False)
     confidence_score = Column(Float, nullable=False)
     analyzed_at = Column(DateTime, default=datetime.utcnow)
+
+    tweet = relationship("Tweet", back_populates="market_sentiment")
 
 
 class Token(Base):
@@ -40,7 +46,7 @@ class Token(Base):
     blockchain_network = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    sentiments = relationship("TokenSentiment", back_populates="token")
+    sentiments = relationship("TokenSentiment", back_populates="token", cascade="all, delete-orphan")
 
 
 class TokenSentiment(Base):
@@ -48,12 +54,13 @@ class TokenSentiment(Base):
 
     id = Column(Integer, primary_key=True)
     token_id = Column(Integer, ForeignKey("tokens.id"), nullable=False, index=True)
-    tweet_id = Column(String(50), nullable=False, index=True)
+    tweet_id = Column(Integer, ForeignKey("tweets.id"), nullable=False, index=True)
     sentiment = Column(Enum(SentimentEnum), nullable=False)
     confidence_score = Column(Float, nullable=False)
     analyzed_at = Column(DateTime, default=datetime.utcnow)
 
     token = relationship("Token", back_populates="sentiments")
+    tweet = relationship("Tweet", back_populates="token_sentiments")
 
 
 class Network(Base):
@@ -63,7 +70,7 @@ class Network(Base):
     name = Column(String(50), nullable=False, unique=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    sentiments = relationship("NetworkSentiment", back_populates="network")
+    sentiments = relationship("NetworkSentiment", back_populates="network", cascade="all, delete-orphan")
 
 
 class NetworkSentiment(Base):
@@ -71,12 +78,13 @@ class NetworkSentiment(Base):
 
     id = Column(Integer, primary_key=True)
     network_id = Column(Integer, ForeignKey("networks.id"), nullable=False, index=True)
-    tweet_id = Column(String(50), nullable=False, index=True)
+    tweet_id = Column(Integer, ForeignKey("tweets.id"), nullable=False, index=True)
     sentiment = Column(Enum(SentimentEnum), nullable=False)
     confidence_score = Column(Float, nullable=False)
     analyzed_at = Column(DateTime, default=datetime.utcnow)
 
     network = relationship("Network", back_populates="sentiments")
+    tweet = relationship("Tweet", back_populates="network_sentiments")
 
 
 class Influencer(Base):
