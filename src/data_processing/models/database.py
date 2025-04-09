@@ -15,122 +15,74 @@ class Tweet(Base):
     __tablename__ = "tweets"
 
     id = Column(Integer, primary_key=True)
-    tweet_id = Column(String(50), unique=True, nullable=False)
+    tweet_id = Column(String(50), unique=True, nullable=False, index=True)
     text = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False)
-    author_id = Column(String(50), nullable=False)
-    author_username = Column(String(100))
-    retweet_count = Column(Integer, default=0)
-    like_count = Column(Integer, default=0)
     collected_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relation to analysis
-    sentiment_analysis = relationship("SentimentAnalysis", back_populates="tweet", uselist=False)
 
-
-class SentimentAnalysis(Base):
-    __tablename__ = "sentiment_analysis"
+class MarketSentiment(Base):
+    __tablename__ = "market_sentiment"
 
     id = Column(Integer, primary_key=True)
-    tweet_id = Column(Integer, ForeignKey("tweets.id"), unique=True, nullable=False)
+    tweet_id = Column(String(50), nullable=False, index=True)
     sentiment = Column(Enum(SentimentEnum), nullable=False)
     confidence_score = Column(Float, nullable=False)
     analyzed_at = Column(DateTime, default=datetime.utcnow)
 
-    # Tweet Relation
-    tweet = relationship("Tweet", back_populates="sentiment_analysis")
 
-
-class BlockchainToken(Base):
-    __tablename__ = "blockchain_tokens"
+class Token(Base):
+    __tablename__ = "tokens"
 
     id = Column(Integer, primary_key=True)
-    token_address = Column(String(44), nullable=False)  # May vary in length for different blockchains
-    symbol = Column(String(20), nullable=False)
-    name = Column(String(100))
-    blockchain_network_id = Column(Integer, ForeignKey("blockchain_networks.id"),
-                                   nullable=True)  # Network ID or NULL if unknown
-    network_confidence = Column(Float, default=0.0)  # Confidence in network determination (0-1)
-    manually_verified = Column(Boolean, default=False)  # Whether manually verified
-    needs_review = Column(Boolean, default=False)  # Whether needs review
-    is_archived = Column(Boolean, default=False)  # Whether token is archived (inactive)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # References the blockchain_network field for backward compatibility
+    symbol = Column(String(20), nullable=False, index=True, unique=True)
+    name = Column(String(100), nullable=True)
     blockchain_network = Column(String(50), nullable=True)
-
-    # Indexes
-    __table_args__ = (
-        # Unique index by address and network, allowing NULL in blockchain_network_id
-        Index('ix_blockchain_tokens_address_network', 'token_address', 'blockchain_network_id', unique=True),
-        # Index for faster lookup by symbol and network
-        Index('ix_blockchain_tokens_symbol_network', 'symbol', 'blockchain_network_id')
-    )
-
-    # Relationships
-    mentions = relationship("TokenMention", back_populates="token", cascade="all, delete-orphan")
-    network = relationship("BlockchainNetwork", back_populates="tokens")
-    categorization_history = relationship("TokenCategorizationHistory", back_populates="token",
-                                                          cascade="all, delete-orphan")
-
-
-class TokenMention(Base):
-    __tablename__ = "token_mentions"
-
-    id = Column(Integer, primary_key=True)
-    tweet_id = Column(Integer, ForeignKey("tweets.id"), nullable=False)
-    token_id = Column(Integer, ForeignKey("blockchain_tokens.id"), nullable=False)
-    mentioned_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relation
-    token = relationship("BlockchainToken", back_populates="mentions")
-
-
-class BlockchainNetwork(Base):
-    __tablename__ = "blockchain_networks"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(50), unique=True, nullable=False)  # Internal identifier (lowercase)
-    display_name = Column(String(100))  # User-friendly name for display
-    description = Column(Text)
-    icon_url = Column(String(255))  # URL to network icon
-    is_active = Column(Boolean, default=True)  # Whether the network is active
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Lists of related terms for network identification
-    hashtags = Column(ARRAY(String))  # Associated hashtags
-    keywords = Column(ARRAY(String))  # Associated keywords
-
-    # Network metadata
-    launch_date = Column(DateTime, nullable=True)  # When the network was launched
-    website_url = Column(String(255), nullable=True)  # Official website
-    explorer_url = Column(String(255), nullable=True)  # Block explorer URL
-
-    # Relationships
-    tokens = relationship("BlockchainToken", back_populates="network")
-
-    def __repr__(self):
-        return f"<BlockchainNetwork(name='{self.name}', display_name='{self.display_name}')>"
-
-
-class TokenCategorizationHistory(Base):
-    __tablename__ = "token_categorization_history"
-
-    id = Column(Integer, primary_key=True)
-    token_id = Column(Integer, ForeignKey("blockchain_tokens.id", ondelete="CASCADE"), nullable=False)
-    previous_network_id = Column(Integer, ForeignKey("blockchain_networks.id"), nullable=True)
-    new_network_id = Column(Integer, ForeignKey("blockchain_networks.id"), nullable=True)
-    previous_confidence = Column(Float, nullable=True)
-    new_confidence = Column(Float, nullable=False)
-    categorized_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Null if automatic
-    is_auto_categorized = Column(Boolean, default=False)
-    notes = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relations
-    token = relationship("BlockchainToken", back_populates="categorization_history")
-    previous_network = relationship("BlockchainNetwork", foreign_keys=[previous_network_id])
-    new_network = relationship("BlockchainNetwork", foreign_keys=[new_network_id])
-    user = relationship("User")
+    sentiments = relationship("TokenSentiment", back_populates="token")
+
+
+class TokenSentiment(Base):
+    __tablename__ = "token_sentiment"
+
+    id = Column(Integer, primary_key=True)
+    token_id = Column(Integer, ForeignKey("tokens.id"), nullable=False, index=True)
+    tweet_id = Column(String(50), nullable=False, index=True)
+    sentiment = Column(Enum(SentimentEnum), nullable=False)
+    confidence_score = Column(Float, nullable=False)
+    analyzed_at = Column(DateTime, default=datetime.utcnow)
+
+    token = relationship("Token", back_populates="sentiments")
+
+
+class Network(Base):
+    __tablename__ = "networks"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), nullable=False, unique=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    sentiments = relationship("NetworkSentiment", back_populates="network")
+
+
+class NetworkSentiment(Base):
+    __tablename__ = "network_sentiment"
+
+    id = Column(Integer, primary_key=True)
+    network_id = Column(Integer, ForeignKey("networks.id"), nullable=False, index=True)
+    tweet_id = Column(String(50), nullable=False, index=True)
+    sentiment = Column(Enum(SentimentEnum), nullable=False)
+    confidence_score = Column(Float, nullable=False)
+    analyzed_at = Column(DateTime, default=datetime.utcnow)
+
+    network = relationship("Network", back_populates="sentiments")
+
+
+class Influencer(Base):
+    __tablename__ = "influencers"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(50), nullable=False, unique=True, index=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
