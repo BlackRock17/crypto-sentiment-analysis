@@ -29,15 +29,6 @@ TWITTER_ACCESS_TOKEN_SECRET = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
 # # Database Configuration
 # DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://username:password@localhost:5432/crypto_sentiment')
 
-# Solana-related hashtags to track
-SOLANA_HASHTAGS = [
-    'solana',
-    'sol',
-    'solanasummer',
-    'solananft',
-    'solanafamous',
-]
-
 # JWT Settings
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_hex(32))  # Generates a random key if none exists
 JWT_ALGORITHM = "HS256"
