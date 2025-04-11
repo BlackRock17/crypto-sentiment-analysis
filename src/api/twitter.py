@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from datetime import datetime
 import logging
 
+from src.data_processing.kafka.setup import check_kafka_connection
 from src.schemas.twitter import TweetCreate
 from src.data_processing.kafka.producer import send_tweet
 
@@ -60,4 +61,32 @@ async def add_manual_tweet(tweet: TweetCreate):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process tweet: {str(e)}"
+        )
+
+
+@router.get("/status", status_code=status.HTTP_200_OK, response_model=dict)
+async def get_twitter_status():
+    """
+    Get the status of Twitter data processing pipeline.
+
+    Returns:
+        Dictionary with current stats and status
+    """
+    try:
+        # Check Kafka connection
+        kafka_connected = check_kafka_connection()
+
+        # Add logic for counting tweets and mentions (temporary stub)
+        # In real implementation, you would query the database
+        # This is just a placeholder
+        return {
+            "twitter_connection": "ok" if kafka_connected else "error",
+            "stored_tweets": 0,  # Later will be a DB query
+            "token_mentions": 0,  # Later will be a DB query
+        }
+    except Exception as e:
+        logger.error(f"Error getting status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get status: {str(e)}"
         )
