@@ -3,10 +3,7 @@
 // API endpoints
 const API_ENDPOINTS = {
     STATUS: '/twitter/status',
-    MANUAL_TWEET: '/twitter/manual-tweets',
-    COLLECT: '/twitter/collect',
-    TOKENS: '/twitter/tokens',
-    NETWORKS: '/twitter/networks'
+    TWEETS: '/twitter/tweets',
 };
 
 /**
@@ -139,62 +136,53 @@ async function submitTweet(event) {
         // Get form data
         const formData = new FormData(form);
 
-        // Collect and log form data for debugging
+        // Get tweet text and generate a unique ID if not provided
         const tweetText = formData.get('tweet_text') || '';
-        const influencerUsername = formData.get('influencer_username') || '';
-        const retweetCount = parseInt(formData.get('retweet_count') || '0');
-        const likeCount = parseInt(formData.get('like_count') || '0');
+        const tweetId = formData.get('tweet_id') || `manual_${Date.now()}`;
 
-        console.log("Form data collected:", {
-            text: tweetText,
-            username: influencerUsername,
-            retweets: retweetCount,
-            likes: likeCount
-        });
-
-        const tweetData = {
-            influencer_username: influencerUsername,
-            text: tweetText,
-            retweet_count: retweetCount,
-            like_count: likeCount
-        };
-
-        // Add created_at if provided
-        const createdAt = formData.get('created_at');
-        if (createdAt) {
-            tweetData.created_at = new Date(createdAt).toISOString();
+        // Get timestamp or use current time
+        let createdAt = formData.get('created_at');
+        if (!createdAt) {
+            const now = new Date();
+            createdAt = now.toISOString();
         }
 
-        // Submit tweet
+        const tweetData = {
+            tweet_id: tweetId,
+            text: tweetText,
+            created_at: createdAt
+        };
+
         console.log("Sending data to API:", tweetData);
-        const result = await apiRequest(API_ENDPOINTS.MANUAL_TWEET, {
+        const result = await apiRequest(API_ENDPOINTS.TWEETS, {
             method: 'POST',
             body: JSON.stringify(tweetData)
         });
 
         console.log("API response:", result);
 
-        // Simplify response display - no fancy formatting of text
+        // Display success message
         statusElement.innerHTML = `
             <div class="alert alert-success">
                 Tweet submitted successfully! ID: ${result.tweet_id}
             </div>
             <div class="card p-3 border bg-light">
-                <div class="d-flex justify-content-between">
-                    <strong>@${influencerUsername}</strong>
-                </div>
                 <p>${tweetText}</p>
+                <small class="text-muted">ID: ${tweetId}</small>
             </div>
         `;
 
-        // Hide token mentions panel
-        const mentionsPanel = document.getElementById('token-mentions-panel');
-        if (mentionsPanel) {
-            mentionsPanel.classList.add('d-none');
-        }
-
         // Add to activity log
         addActivityLog(`Tweet submitted successfully`, 'success');
+
+        // Clear form
+        form.reset();
+
+        // Set current time in the form
+        const nowInput = new Date();
+        nowInput.setMinutes(nowInput.getMinutes() - nowInput.getTimezoneOffset());
+        document.getElementById('created_at').value = nowInput.toISOString().slice(0, 16);
+
     } catch (error) {
         console.error('Failed to submit tweet:', error);
 
@@ -245,83 +233,4 @@ function addActivityLog(message, type = 'info') {
     while (logElement.children.length > maxEntries) {
         logElement.removeChild(logElement.lastChild);
     }
-}
-
-/**
- * Update Kafka monitoring
- * This is a placeholder function for the monitoring page
- */
-function updateKafkaMonitoring() {
-    // В реална имплементация, това би извикало API за получаване на данни за мониторинг
-    console.log('Kafka monitoring update triggered');
-
-    // Актуализирай статуса на връзката
-    const statusEl = document.getElementById('kafka-connection-status');
-    if (statusEl) {
-        statusEl.textContent = 'Connected';
-        statusEl.className = 'badge bg-success';
-    }
-
-    // Актуализирай списъка с топици
-    const topicsEl = document.getElementById('kafka-topics');
-    if (topicsEl) {
-        topicsEl.innerHTML = `
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                twitter-raw-tweets
-                <span class="badge bg-primary rounded-pill">3 partitions</span>
-            </li>
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                token-mentions
-                <span class="badge bg-primary rounded-pill">3 partitions</span>
-            </li>
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                sentiment-results
-                <span class="badge bg-primary rounded-pill">3 partitions</span>
-            </li>
-        `;
-    }
-
-    // Актуализирай списъка с консуматори
-    const consumersEl = document.getElementById('kafka-consumers');
-    if (consumersEl) {
-        consumersEl.innerHTML = `
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                tweet-processor
-                <span class="badge bg-success rounded-pill">Active</span>
-            </li>
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                token-processor
-                <span class="badge bg-success rounded-pill">Active</span>
-            </li>
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                sentiment-analyzer
-                <span class="badge bg-success rounded-pill">Active</span>
-            </li>
-        `;
-    }
-
-    // Актуализирай таблицата с последни съобщения
-    const recentMsgsEl = document.getElementById('recent-messages');
-    if (recentMsgsEl && recentMsgsEl.querySelector('tbody')) {
-        recentMsgsEl.querySelector('tbody').innerHTML = `
-            <tr>
-                <td>twitter-raw-tweets</td>
-                <td>${new Date().toLocaleTimeString()}</td>
-                <td>Processed tweet from @test_user about $SOL</td>
-            </tr>
-            <tr>
-                <td>token-mentions</td>
-                <td>${new Date().toLocaleTimeString()}</td>
-                <td>Detected token $SOL in tweet</td>
-            </tr>
-            <tr>
-                <td>sentiment-results</td>
-                <td>${new Date().toLocaleTimeString()}</td>
-                <td>Analyzed sentiment: POSITIVE (0.78)</td>
-            </tr>
-        `;
-    }
-
-    // В реална имплементация бихме добавили данни от истинския Kafka
-    addActivityLog('Monitoring updated', 'info');
 }
