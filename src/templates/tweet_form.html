@@ -12,38 +12,23 @@
             <div class="card-body">
                 <form id="tweet-form">
                     <div class="mb-3">
-                        <label for="influencer_username" class="form-label">Influencer Username</label>
-                        <input type="text" class="form-control" id="influencer_username" name="influencer_username" required>
-                        <div class="form-text">Twitter username without @ symbol</div>
+                        <label for="tweet_id" class="form-label">Tweet ID (Optional)</label>
+                        <input type="text" class="form-control" id="tweet_id" name="tweet_id">
+                        <div class="form-text">Leave empty to generate automatically</div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="tweet_text" class="form-label">Tweet Text</label>
                         <textarea class="form-control" id="tweet_text" name="tweet_text" rows="4" required></textarea>
                         <div class="form-text">Enter the tweet content, including $cashtags and #hashtags</div>
                     </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="retweet_count" class="form-label">Retweet Count</label>
-                                <input type="number" class="form-control" id="retweet_count" name="retweet_count" value="0" min="0">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="like_count" class="form-label">Like Count</label>
-                                <input type="number" class="form-control" id="like_count" name="like_count" value="0" min="0">
-                            </div>
-                        </div>
-                    </div>
-                    
+
                     <div class="mb-3">
                         <label for="created_at" class="form-label">Created At</label>
                         <input type="datetime-local" class="form-control" id="created_at" name="created_at">
                         <div class="form-text">Leave empty to use current time</div>
                     </div>
-                    
+
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">Submit Tweet</button>
                     </div>
@@ -59,12 +44,6 @@
                 <div id="processing-status">
                     <div class="alert alert-secondary">No tweet submitted yet</div>
                 </div>
-                
-                <div id="token-mentions-panel" class="mt-3 d-none">
-                    <h4>Detected Token Mentions</h4>
-                    <ul id="token-mentions-list" class="list-group">
-                    </ul>
-                </div>
             </div>
         </div>
     </div>
@@ -78,7 +57,7 @@
         const now = new Date();
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         document.getElementById('created_at').value = now.toISOString().slice(0, 16);
-        
+
         // Setup form submission
         document.getElementById('tweet-form').addEventListener('submit', submitTweet);
     });
