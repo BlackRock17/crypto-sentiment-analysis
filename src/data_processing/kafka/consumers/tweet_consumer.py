@@ -46,10 +46,16 @@ class TweetConsumer(KafkaConsumerBase):
 
         try:
             # Process the tweet using the service
-            tweet_id = self.tweet_service.process_tweet(message)
+            result = self.tweet_service.process_tweet(message)
 
-            if tweet_id is not None:
-                logger.info(f"Successfully processed tweet, DB ID: {tweet_id}")
+            if result is not None:
+                tweet_id = result["id"]
+                status = result["status"]
+
+                if status == "created":
+                    logger.info(f"Successfully created new tweet, DB ID: {tweet_id}")
+                else:
+                    logger.info(f"Found existing tweet, DB ID: {tweet_id}")
 
                 processing_id = message.get("processing_id")
                 if processing_id:
