@@ -27,50 +27,50 @@ function connectToSSE() {
     });
 
     eventSource.addEventListener('tweet_processed', function(event) {
-    const data = JSON.parse(event.data);
-    console.log("Tweet processed event:", data);
+        const data = JSON.parse(event.data);
+        console.log("Tweet processed event:", data);
 
-    // Check if this is for our current tweet
-    if (data.processing_id === currentProcessingId) {
-        const statusElement = document.getElementById('processing-status');
-        if (!statusElement) return;
+        // Check if this is for our current tweet
+        if (data.processing_id === currentProcessingId) {
+            const statusElement = document.getElementById('processing-status');
+            if (!statusElement) return;
 
-        if (data.status === "success") {
-            // Получаване на текста за визуализация от формата или от съхранения текст
-            const tweetText = document.getElementById('tweet_text') ?
-                              document.getElementById('tweet_text').value :
-                              sessionStorage.getItem('lastTweetText') || '';
+            if (data.status === "success") {
+                // Получаване на текста за визуализация от формата или от съхранения текст
+                const tweetText = document.getElementById('tweet_text') ?
+                                  document.getElementById('tweet_text').value :
+                                  sessionStorage.getItem('lastTweetText') || '';
 
-            // Определяне на съобщението според типа операция
-            const operationMsg = data.operation === "created" ?
-                               "Tweet created successfully" :
-                               "Found existing tweet";
+                // Определяне на съобщението според типа операция
+                const operationMsg = data.operation === "created" ?
+                                   "Tweet created successfully" :
+                                   "Found existing tweet";
 
-            statusElement.innerHTML = `
-                <div class="alert alert-success">
-                    ${operationMsg}! Tweet ID: ${data.tweet_id}, Database ID: ${data.db_id}
-                </div>
-                <div class="card p-3 border bg-light">
-                    <p>${tweetText}</p>
-                    <small class="text-muted">ID: ${data.tweet_id}</small>
-                </div>
-            `;
-            // Add to activity log
-            addActivityLog(operationMsg, 'success');
-        } else {
-            statusElement.innerHTML = `
-                <div class="alert alert-danger">
-                    Tweet processing failed: ${data.message}
-                </div>
-            `;
-            // Add to activity log
-            addActivityLog(`Tweet processing failed`, 'error');
+                statusElement.innerHTML = `
+                    <div class="alert alert-success">
+                        ${operationMsg}! Tweet ID: ${data.tweet_id}, Database ID: ${data.db_id}
+                    </div>
+                    <div class="card p-3 border bg-light">
+                        <p>${tweetText}</p>
+                        <small class="text-muted">ID: ${data.tweet_id}</small>
+                    </div>
+                `;
+                // Add to activity log
+                addActivityLog(operationMsg, 'success');
+            } else {
+                statusElement.innerHTML = `
+                    <div class="alert alert-danger">
+                        Tweet processing failed: ${data.message}
+                    </div>
+                `;
+                // Add to activity log
+                addActivityLog(`Tweet processing failed`, 'error');
+            }
+
+            // Reset current processing ID
+            currentProcessingId = null;
         }
-
-        // Reset current processing ID
-        currentProcessingId = null;
-    }
-});
+    });
 
     eventSource.addEventListener('heartbeat', function(event) {
         // Heartbeat event - connection is alive
@@ -266,22 +266,58 @@ async function submitTweet(event) {
             // Set a timeout in case processing takes too long
             setTimeout(() => {
                 if (currentProcessingId === result.processing_id) {
-                    statusElement.innerHTML = `
-                        <div class="alert alert-warning">
-                            Tweet processing is taking longer than expected. It may still be processed in the background.
-                        </div>
-                        <div class="card p-3 border bg-light">
-                            <p>${tweetText}</p>
-                            <small class="text-muted">ID: ${tweetId}</small>
-                        </div>
-                    `;
-                    // Add to activity log
-                    addActivityLog(`Tweet processing timeout`, 'warning');
+                    // Проверяваме дали туитът е обработен чрез API повикване
+                    apiRequest(`${API_ENDPOINTS.TWEETS}/status/${tweetId}`)
+                        .then(statusResult => {
+                            if (statusResult.status === "success") {
+                                // Показваме успешен резултат
+                                const operationMsg = statusResult.operation === "created" ?
+                                                  "Tweet created successfully" :
+                                                  "Found existing tweet";
 
-                    // Reset current processing ID
-                    currentProcessingId = null;
+                                statusElement.innerHTML = `
+                                    <div class="alert alert-success">
+                                        ${operationMsg}! Tweet ID: ${statusResult.tweet_id}, Database ID: ${statusResult.db_id}
+                                    </div>
+                                    <div class="card p-3 border bg-light">
+                                        <p>${tweetText}</p>
+                                        <small class="text-muted">ID: ${tweetId}</small>
+                                    </div>
+                                `;
+                                addActivityLog(operationMsg, 'success');
+                            } else {
+                                // Показваме timeout съобщение
+                                statusElement.innerHTML = `
+                                    <div class="alert alert-warning">
+                                        Tweet processing is taking longer than expected. It may still be processed in the background.
+                                    </div>
+                                    <div class="card p-3 border bg-light">
+                                        <p>${tweetText}</p>
+                                        <small class="text-muted">ID: ${tweetId}</small>
+                                    </div>
+                                `;
+                                addActivityLog(`Tweet processing timeout`, 'warning');
+                            }
+
+                            // Reset current processing ID
+                            currentProcessingId = null;
+                        })
+                        .catch(error => {
+                            console.error("Error checking tweet status:", error);
+                            // Показваме timeout съобщение при грешка
+                            statusElement.innerHTML = `
+                                <div class="alert alert-warning">
+                                    Tweet processing is taking longer than expected. It may still be processed in the background.
+                                </div>
+                                <div class="card p-3 border bg-light">
+                                    <p>${tweetText}</p>
+                                    <small class="text-muted">ID: ${tweetId}</small>
+                                </div>
+                            `;
+                            currentProcessingId = null;
+                        });
                 }
-            }, 30000); // 30 second timeout
+            }, 5000); // Проверка след 5 секунди
         } else {
             // В случай, че имаме директен отговор (не чрез SSE)
             statusElement.innerHTML = `
