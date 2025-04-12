@@ -54,7 +54,7 @@ class TweetService:
 
         return True
 
-    def process_tweet(self, tweet_data: Dict[str, Any]) -> Optional[int]:
+    def process_tweet(self, tweet_data: Dict[str, Any]) -> None | dict[str, int | str] | dict[str, int | str]:
         """
         Process a tweet - validate and store in database.
 
@@ -74,7 +74,7 @@ class TweetService:
             existing_tweet = self.tweet_repository.get_tweet_by_id(tweet_data['tweet_id'])
             if existing_tweet:
                 logger.info(f"Tweet already exists with ID: {existing_tweet.id}")
-                return existing_tweet.id
+                return {"id": existing_tweet.id, "status": "existing"}
 
             # Parse created_at if it's a string
             created_at = tweet_data['created_at']
@@ -94,7 +94,7 @@ class TweetService:
 
             if db_tweet:
                 logger.info(f"Tweet processed and stored with ID: {db_tweet.id}")
-                return db_tweet.id
+                return {"id": db_tweet.id, "status": "created"}
 
             return None
 
