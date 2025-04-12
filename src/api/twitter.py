@@ -1,9 +1,13 @@
 """
 Twitter API endpoints for handling tweets.
 """
-from fastapi import APIRouter, HTTPException, status
-from datetime import datetime
+import json
+import uuid
+import asyncio
 import logging
+from fastapi import APIRouter, HTTPException, status, Request
+from sse_starlette.sse import EventSourceResponse
+from datetime import datetime
 
 from src.data_processing.kafka.setup import check_kafka_connection
 from src.schemas.twitter import TweetCreate
