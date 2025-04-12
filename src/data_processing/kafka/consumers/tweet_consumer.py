@@ -35,20 +35,17 @@ class TweetConsumer(KafkaConsumerBase):
     def _process_tweet(self, message: Dict[str, Any]) -> bool:
         """
         Process a tweet message from Kafka.
-
-        Args:
-            message: Kafka message payload as dictionary
-
-        Returns:
-            True if processing was successful, False otherwise
         """
         logger.info(f"Processing tweet: {message.get('tweet_id', 'unknown')}")
+        logger.info(f"Message content: {message}")  # Добавено за дебъг
 
         try:
             # Process the tweet using the service
             result = self.tweet_service.process_tweet(message)
+            logger.info(f"Process result: {result}")  # Добавено за дебъг
 
             if result is not None:
+                # Извличаме информацията от върнатия резултат
                 tweet_id = result["id"]
                 status = result["status"]
 
@@ -57,18 +54,40 @@ class TweetConsumer(KafkaConsumerBase):
                 else:
                     logger.info(f"Found existing tweet, DB ID: {tweet_id}")
 
+                # Проверяваме за processing_id за SSE известия
                 processing_id = message.get("processing_id")
+                logger.info(f"Processing ID from message: {processing_id}")  # Добавено за дебъг
+
                 if processing_id:
+                    logger.info(f"Will try to notify about processing_id: {processing_id}")
+                    try:
+                        # Импортираме функцията, за да избегнем циклични зависимости
+                        from src.api.twitter import notify_tweet_processed
+                        from src.main import app as fastapi_app
 
-                    result = {
-                        "status": "success",
-                        "message": "Tweet processed successfully",
-                        "tweet_id": message.get("tweet_id"),
-                        "db_id": tweet_id
-                    }
+                        # Създаваме резултата за клиента
+                        notification_result = {
+                            "status": "success",
+                            "message": f"Tweet {'processed' if status == 'created' else 'found'} successfully",
+                            "tweet_id": message.get("tweet_id"),
+                            "db_id": tweet_id,
+                            "operation": status  # Добавяме информация за типа операция
+                        }
 
-                    loop = asyncio.get_event_loop()
-                    loop.create_task(notify_tweet_processed(fastapi_app, processing_id, result))
+                        logger.info(f"Notification result: {notification_result}")
+
+                        # Извикваме известяването асинхронно
+                        import asyncio
+
+                        loop = asyncio.get_event_loop()
+                        loop.create_task(notify_tweet_processed(fastapi_app, processing_id, notification_result))
+                        logger.info(f"Notification task created for {processing_id}")
+                    except Exception as e:
+                        logger.error(f"Error creating notification task: {e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
+                else:
+                    logger.warning("No processing_id in message, skipping notification")
 
                 return True
             else:
@@ -77,6 +96,8 @@ class TweetConsumer(KafkaConsumerBase):
 
         except Exception as e:
             logger.error(f"Error in tweet processing: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
 
 
