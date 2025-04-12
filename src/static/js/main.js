@@ -1,10 +1,90 @@
 // main.js - Core functionality for Twitter Sentiment Analysis UI
 
+// SSE variables
+let eventSource = null;
+let currentProcessingId = null;
+
 // API endpoints
 const API_ENDPOINTS = {
     STATUS: '/twitter/status',
     TWEETS: '/twitter/tweets',
+    TWEET_EVENTS: '/twitter/tweets/events'
 };
+
+/**
+ * Connect to SSE for real-time updates
+ */
+function connectToSSE() {
+    if (eventSource !== null) {
+        return; // Already connected
+    }
+
+    eventSource = new EventSource(API_ENDPOINTS.TWEET_EVENTS);
+
+    eventSource.addEventListener('connected', function(event) {
+        const data = JSON.parse(event.data);
+        console.log("SSE connected with queue ID:", data.queue_id);
+    });
+
+    eventSource.addEventListener('tweet_processed', function(event) {
+        const data = JSON.parse(event.data);
+        console.log("Tweet processed event:", data);
+
+        // Check if this is for our current tweet
+        if (data.processing_id === currentProcessingId) {
+            const statusElement = document.getElementById('processing-status');
+            if (!statusElement) return;
+
+            if (data.status === "success") {
+                // Получаване на текста за визуализация от формата или от съхранения текст
+                const tweetText = document.getElementById('tweet_text') ?
+                                  document.getElementById('tweet_text').value :
+                                  sessionStorage.getItem('lastTweetText') || '';
+
+                statusElement.innerHTML = `
+                    <div class="alert alert-success">
+                        Tweet processed successfully! Tweet ID: ${data.tweet_id}, Database ID: ${data.db_id}
+                    </div>
+                    <div class="card p-3 border bg-light">
+                        <p>${tweetText}</p>
+                        <small class="text-muted">ID: ${data.tweet_id}</small>
+                    </div>
+                `;
+                // Add to activity log
+                addActivityLog(`Tweet processed successfully`, 'success');
+            } else {
+                statusElement.innerHTML = `
+                    <div class="alert alert-danger">
+                        Tweet processing failed: ${data.message}
+                    </div>
+                `;
+                // Add to activity log
+                addActivityLog(`Tweet processing failed`, 'error');
+            }
+
+            // Reset current processing ID
+            currentProcessingId = null;
+        }
+    });
+
+    eventSource.addEventListener('heartbeat', function(event) {
+        // Heartbeat event - connection is alive
+        console.log("SSE heartbeat received");
+    });
+
+    eventSource.addEventListener('error', function(event) {
+        console.error("SSE connection error:", event);
+
+        // Try to reconnect (browser will usually do this automatically)
+        setTimeout(() => {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                connectToSSE();
+            }
+        }, 3000);
+    });
+}
 
 /**
  * Make API request
@@ -153,6 +233,9 @@ async function submitTweet(event) {
             created_at: createdAt
         };
 
+        // Сохраняем текст твита на случай, если форма будет очищена
+        sessionStorage.setItem('lastTweetText', tweetText);
+
         console.log("Sending data to API:", tweetData);
         const result = await apiRequest(API_ENDPOINTS.TWEETS, {
             method: 'POST',
@@ -161,19 +244,53 @@ async function submitTweet(event) {
 
         console.log("API response:", result);
 
-        // Display success message
-        statusElement.innerHTML = `
-            <div class="alert alert-success">
-                Tweet submitted successfully! ID: ${result.tweet_id}
-            </div>
-            <div class="card p-3 border bg-light">
-                <p>${tweetText}</p>
-                <small class="text-muted">ID: ${tweetId}</small>
-            </div>
-        `;
+        if (result.status === "processing") {
+            // Store the processing ID to match with SSE events
+            currentProcessingId = result.processing_id;
 
-        // Add to activity log
-        addActivityLog(`Tweet submitted successfully`, 'success');
+            statusElement.innerHTML = `
+                <div class="alert alert-info">
+                    <div class="spinner"></div> Tweet sent to Kafka, waiting for processing...
+                </div>
+                <div class="card p-3 border bg-light">
+                    <p>${tweetText}</p>
+                    <small class="text-muted">ID: ${tweetId}</small>
+                </div>
+            `;
+
+            // Set a timeout in case processing takes too long
+            setTimeout(() => {
+                if (currentProcessingId === result.processing_id) {
+                    statusElement.innerHTML = `
+                        <div class="alert alert-warning">
+                            Tweet processing is taking longer than expected. It may still be processed in the background.
+                        </div>
+                        <div class="card p-3 border bg-light">
+                            <p>${tweetText}</p>
+                            <small class="text-muted">ID: ${tweetId}</small>
+                        </div>
+                    `;
+                    // Add to activity log
+                    addActivityLog(`Tweet processing timeout`, 'warning');
+
+                    // Reset current processing ID
+                    currentProcessingId = null;
+                }
+            }, 30000); // 30 second timeout
+        } else {
+            // В случай, че имаме директен отговор (не чрез SSE)
+            statusElement.innerHTML = `
+                <div class="alert alert-success">
+                    Tweet submitted successfully! ID: ${result.tweet_id}
+                </div>
+                <div class="card p-3 border bg-light">
+                    <p>${tweetText}</p>
+                    <small class="text-muted">ID: ${tweetId}</small>
+                </div>
+            `;
+            // Add to activity log
+            addActivityLog(`Tweet submitted successfully`, 'success');
+        }
 
         // Clear form
         form.reset();
@@ -234,3 +351,32 @@ function addActivityLog(message, type = 'info') {
         logElement.removeChild(logElement.lastChild);
     }
 }
+
+// Initialize connection when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize SSE connection
+    connectToSSE();
+
+    // Initialize dashboard if on dashboard page
+    updateDashboardStats();
+
+    // Setup button handlers
+    const checkStatusBtn = document.getElementById('check-status-btn');
+    if (checkStatusBtn) {
+        checkStatusBtn.addEventListener('click', checkKafkaStatus);
+    }
+
+    // Setup form submission
+    const tweetForm = document.getElementById('tweet-form');
+    if (tweetForm) {
+        tweetForm.addEventListener('submit', submitTweet);
+
+        // Default the date/time field to current time
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        const dateTimeField = document.getElementById('created_at');
+        if (dateTimeField) {
+            dateTimeField.value = now.toISOString().slice(0, 16);
+        }
+    }
+});
