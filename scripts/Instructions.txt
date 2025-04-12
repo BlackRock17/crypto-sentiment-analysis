@@ -1,68 +1,8 @@
-# Тестване на Kafka интеграцията
-
-## Предварителни изисквания
-- Docker и Docker Compose инсталирани
-- Работеща локална Kafka инстанция (чрез docker-compose)
-- Python 3.8+ с инсталирани зависимости от requirements.txt
-
-## Стъпка 1: Стартиране на Kafka чрез Docker
-```bash
 # Стартиране на Kafka и Zookeeper
 docker compose -f deployment/docker/docker-compose.kafka.yml up -d
 
 # Проверка дали контейнерите работят
 docker compose -f deployment/docker/docker-compose.kafka.yml ps
-
-#-------------------------------------------------------------------------
-
-# Проверка на връзката
-python scripts/check_kafka_connection.py
-
-# Проверка на връзката с тест за produce/consume
-python scripts/check_kafka_connection.py --test-produce-consume
-
-#-------------------------------------------------------------------------
-
-# Стартиране на всички консуматори
-python scripts/start_kafka_consumers.py
-
-# Стартиране на определен консуматор
-python scripts/start_kafka_consumers.py --consumers tweet sentiment
-
-# Стартиране за ограничен период от време
-python scripts/start_kafka_consumers.py --run-time 60
-
-#-------------------------------------------------------------------------
-
-# Изпращане на 10 примерни tweet-а през интервал от 1 секунда
-python scripts/test_kafka_pipeline.py
-
-# Изпращане на повече tweet-ове на по-кратки интервали
-python scripts/test_kafka_pipeline.py --count 50 --interval 0.5
-
-#-------------------------------------------------------------------------
-
-# Изпълнение на единичните тестове за Kafka компоненти
-KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_consumer.py
-
-
-Airflow is ready
-docker-compose -f docker-compose-airflow.yml down
-docker-compose -f docker-compose-airflow.yml up
-
-docker-compose -f docker-compose-airflow.yml logs airflow-webserver
-
-
-# Изпълнение на интеграционните тестове
-KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_integration.py
-
-# Изпълнение на end-to-end тестовете
-KAFKA_AVAILABLE=true python -m unittest tests/test_kafka/test_end_to_end.py
-
-#намиране на парола:
-docker ps - намиране на контейнер
-docker logs 9cdf1707463f | Select-String "username:"   -- WINDOWS
-docker logs <container_id> | grep "username:"          -- LINUX
 
 uvicorn src.main:app --reload --port 8000
 
@@ -71,5 +11,8 @@ docker compose -f deployment/docker/docker-compose.kafka.yml down -v
 
 # Стартиране отново
 docker compose -f deployment/docker/docker-compose.kafka.yml up -d
+
+# Стартиране на консумъра
+python -m src.data_processing.kafka.consumers.tweet_consumer
 
 
