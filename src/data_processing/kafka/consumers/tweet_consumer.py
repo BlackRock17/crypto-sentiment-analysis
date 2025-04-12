@@ -2,12 +2,16 @@
 Consumer for processing raw tweets from Kafka.
 """
 import logging
-from typing import Dict, Any
+import asyncio
 
+from typing import Dict, Any
 from src.data_processing.kafka.consumer import KafkaConsumerBase
 from src.data_processing.kafka.config import TOPICS
 from src.services.tweet_service import TweetService
 from src.repositories.tweet_repository import TweetRepository
+from src.api.twitter import notify_tweet_processed
+from fastapi import FastAPI
+from src.main import app as fastapi_app
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -46,6 +50,20 @@ class TweetConsumer(KafkaConsumerBase):
 
             if tweet_id is not None:
                 logger.info(f"Successfully processed tweet, DB ID: {tweet_id}")
+
+                processing_id = message.get("processing_id")
+                if processing_id:
+
+                    result = {
+                        "status": "success",
+                        "message": "Tweet processed successfully",
+                        "tweet_id": message.get("tweet_id"),
+                        "db_id": tweet_id
+                    }
+
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(notify_tweet_processed(fastapi_app, processing_id, result))
+
                 return True
             else:
                 logger.error("Failed to process tweet")
