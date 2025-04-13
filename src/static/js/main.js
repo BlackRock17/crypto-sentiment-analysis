@@ -29,6 +29,7 @@ function connectToSSE() {
     eventSource.addEventListener('tweet_processed', function(event) {
         const data = JSON.parse(event.data);
         console.log("Tweet processed event:", data);
+        console.log("Tweet operation:", data.operation);  // Дебъг лог за операцията
 
         // Check if this is for our current tweet
         if (data.processing_id === currentProcessingId) {
@@ -41,14 +42,22 @@ function connectToSSE() {
                                   document.getElementById('tweet_text').value :
                                   sessionStorage.getItem('lastTweetText') || '';
 
-                // Определяне на съобщението според типа операция
-                let operationMsg = "Tweet created successfully";
-                let alertClass = "alert-success";
+                // Внимателно проверяваме типа на операцията
+                let operationMsg, alertClass;
 
-                // Ако операцията е "existing", показваме различно съобщение
-                if (data.operation === "existing") {
-                    operationMsg = "Tweet already exists in database";
+                if (data.operation === "created") {
+                    operationMsg = "Tweet created successfully";
+                    alertClass = "alert-success";
+                    console.log("Showing created message");
+                } else if (data.operation === "existing") {
+                    operationMsg = "Found existing tweet";
                     alertClass = "alert-warning";
+                    console.log("Showing existing message");
+                } else {
+                    // Резервен вариант, ако статусът е неочакван
+                    operationMsg = "Tweet processed";
+                    alertClass = "alert-info";
+                    console.log("Showing generic message for operation:", data.operation);
                 }
 
                 statusElement.innerHTML = `
@@ -60,8 +69,9 @@ function connectToSSE() {
                         <small class="text-muted">ID: ${data.tweet_id}</small>
                     </div>
                 `;
+
                 // Add to activity log
-                addActivityLog(operationMsg, data.operation === "created" ? 'success' : 'warning');
+                addActivityLog(operationMsg, data.operation === "created" ? 'success' : 'info');
             } else {
                 statusElement.innerHTML = `
                     <div class="alert alert-danger">
@@ -275,13 +285,21 @@ async function submitTweet(event) {
                     apiRequest(`${API_ENDPOINTS.TWEETS}/status/${tweetId}`)
                         .then(statusResult => {
                             if (statusResult.status === "success") {
-                                // Показваме успешен резултат
-                                let operationMsg = "Tweet created successfully";
-                                let alertClass = "alert-success";
+                                // Показваме успешен резултат, но проверяваме типа операция
+                                let operationMsg, alertClass;
 
-                                if (statusResult.operation === "existing") {
-                                    operationMsg = "Tweet already exists in database";
+                                console.log("Status check response:", statusResult);
+                                console.log("Operation type:", statusResult.operation);
+
+                                if (statusResult.operation === "created") {
+                                    operationMsg = "Tweet created successfully";
+                                    alertClass = "alert-success";
+                                } else if (statusResult.operation === "existing") {
+                                    operationMsg = "Found existing tweet";
                                     alertClass = "alert-warning";
+                                } else {
+                                    operationMsg = "Tweet processed";
+                                    alertClass = "alert-info";
                                 }
 
                                 statusElement.innerHTML = `
@@ -293,7 +311,7 @@ async function submitTweet(event) {
                                         <small class="text-muted">ID: ${tweetId}</small>
                                     </div>
                                 `;
-                                addActivityLog(operationMsg, statusResult.operation === "created" ? 'success' : 'warning');
+                                addActivityLog(operationMsg, statusResult.operation === "created" ? 'success' : 'info');
                             } else {
                                 // Показваме timeout съобщение
                                 statusElement.innerHTML = `
@@ -322,9 +340,9 @@ async function submitTweet(event) {
                                     <p>${tweetText}</p>
                                     <small class="text-muted">ID: ${tweetId}</small>
                                 </div>
-                            `;
-                            currentProcessingId = null;
-                        });
+                        `;
+                        currentProcessingId = null;
+                    });
                 }
             }, 5000); // Проверка след 5 секунди
         } else {
