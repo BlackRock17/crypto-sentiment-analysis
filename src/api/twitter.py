@@ -119,7 +119,7 @@ async def check_tweet_status(tweet_id: str):
         if db_tweet:
             return {
                 "status": "success",
-                "message": "Tweet processed successfully",
+                "message": "Tweet already exists in database",
                 "tweet_id": tweet_id,
                 "db_id": db_tweet.id,
                 "operation": "existing"
