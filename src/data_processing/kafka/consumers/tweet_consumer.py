@@ -68,7 +68,7 @@ class TweetConsumer(KafkaConsumerBase):
 
                         notification_result = {
                             "status": "success",
-                            "message": f"Tweet {'processed' if status == 'created' else 'found'} successfully",
+                            "message": f"Tweet {'created successfully' if status == 'created' else 'already exists'} in database",
                             "tweet_id": message.get("tweet_id"),
                             "db_id": tweet_id,
                             "operation": status
