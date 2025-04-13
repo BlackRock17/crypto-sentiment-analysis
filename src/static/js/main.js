@@ -42,12 +42,17 @@ function connectToSSE() {
                                   sessionStorage.getItem('lastTweetText') || '';
 
                 // Определяне на съобщението според типа операция
-                const operationMsg = data.operation === "created" ?
-                                   "Tweet created successfully" :
-                                   "Found existing tweet";
+                let operationMsg = "Tweet created successfully";
+                let alertClass = "alert-success";
+
+                // Ако операцията е "existing", показваме различно съобщение
+                if (data.operation === "existing") {
+                    operationMsg = "Tweet already exists in database";
+                    alertClass = "alert-warning";
+                }
 
                 statusElement.innerHTML = `
-                    <div class="alert alert-success">
+                    <div class="alert ${alertClass}">
                         ${operationMsg}! Tweet ID: ${data.tweet_id}, Database ID: ${data.db_id}
                     </div>
                     <div class="card p-3 border bg-light">
@@ -56,7 +61,7 @@ function connectToSSE() {
                     </div>
                 `;
                 // Add to activity log
-                addActivityLog(operationMsg, 'success');
+                addActivityLog(operationMsg, data.operation === "created" ? 'success' : 'warning');
             } else {
                 statusElement.innerHTML = `
                     <div class="alert alert-danger">
@@ -271,12 +276,16 @@ async function submitTweet(event) {
                         .then(statusResult => {
                             if (statusResult.status === "success") {
                                 // Показваме успешен резултат
-                                const operationMsg = statusResult.operation === "created" ?
-                                                  "Tweet created successfully" :
-                                                  "Found existing tweet";
+                                let operationMsg = "Tweet created successfully";
+                                let alertClass = "alert-success";
+
+                                if (statusResult.operation === "existing") {
+                                    operationMsg = "Tweet already exists in database";
+                                    alertClass = "alert-warning";
+                                }
 
                                 statusElement.innerHTML = `
-                                    <div class="alert alert-success">
+                                    <div class="alert ${alertClass}">
                                         ${operationMsg}! Tweet ID: ${statusResult.tweet_id}, Database ID: ${statusResult.db_id}
                                     </div>
                                     <div class="card p-3 border bg-light">
@@ -284,7 +293,7 @@ async function submitTweet(event) {
                                         <small class="text-muted">ID: ${tweetId}</small>
                                     </div>
                                 `;
-                                addActivityLog(operationMsg, 'success');
+                                addActivityLog(operationMsg, statusResult.operation === "created" ? 'success' : 'warning');
                             } else {
                                 // Показваме timeout съобщение
                                 statusElement.innerHTML = `
