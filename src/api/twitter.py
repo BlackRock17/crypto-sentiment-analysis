@@ -122,7 +122,7 @@ async def check_tweet_status(tweet_id: str):
                 "message": "Tweet processed successfully",
                 "tweet_id": tweet_id,
                 "db_id": db_tweet.id,
-                "operation": "created"
+                "operation": "existing"
             }
         else:
             return {

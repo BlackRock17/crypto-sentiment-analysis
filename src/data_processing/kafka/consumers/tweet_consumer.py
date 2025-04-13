@@ -56,6 +56,8 @@ class TweetConsumer(KafkaConsumerBase):
                 else:
                     logger.info(f"Found existing tweet, DB ID: {tweet_id}")
 
+                logger.info(f"Tweet status from service: {status}")
+
                 processing_id = message.get("processing_id")
 
                 if processing_id:
@@ -66,9 +68,19 @@ class TweetConsumer(KafkaConsumerBase):
                         main_module = importlib.import_module('src.main')
                         fastapi_app = getattr(main_module, 'app')
 
+                        # Създаваме съобщение базирано на статуса
+                        if status == "created":
+                            operation_message = "Tweet created successfully"
+                        elif status == "existing":
+                            operation_message = "Tweet already exists in database"
+                        else:
+                            operation_message = "Tweet processed"
+
+                        logger.info(f"Notification message: {operation_message}, operation status: {status}")
+
                         notification_result = {
                             "status": "success",
-                            "message": f"Tweet {'created successfully' if status == 'created' else 'already exists'} in database",
+                            "message": operation_message,
                             "tweet_id": message.get("tweet_id"),
                             "db_id": tweet_id,
                             "operation": status
