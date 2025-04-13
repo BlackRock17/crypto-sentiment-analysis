@@ -1,118 +1,10 @@
 // main.js - Core functionality for Twitter Sentiment Analysis UI
 
-// SSE variables
-let eventSource = null;
-let currentProcessingId = null;
-
 // API endpoints
 const API_ENDPOINTS = {
     STATUS: '/twitter/status',
-    TWEETS: '/twitter/tweets',
-    TWEET_EVENTS: '/twitter/tweets/events'
+    TWEETS: '/twitter/tweets'
 };
-
-/**
- * Connect to SSE for real-time updates
- */
-function connectToSSE() {
-    if (eventSource !== null) {
-        return; // Already connected
-    }
-
-    eventSource = new EventSource(API_ENDPOINTS.TWEET_EVENTS);
-
-    eventSource.addEventListener('connected', function(event) {
-        const data = JSON.parse(event.data);
-        console.log("SSE connected with queue ID:", data.queue_id);
-    });
-
-    eventSource.addEventListener('tweet_processed', function(event) {
-        const data = JSON.parse(event.data);
-        console.log("Tweet processed event received:", data);
-        console.log("Tweet operation type:", data.operation);
-
-        // Check if this is for our current tweet
-        if (data.processing_id === currentProcessingId) {
-            const statusElement = document.getElementById('processing-status');
-            if (!statusElement) return;
-
-            if (data.status === "success") {
-                // Получаване на текста за визуализация от формата или от съхранения текст
-                const tweetText = document.getElementById('tweet_text') ?
-                                  document.getElementById('tweet_text').value :
-                                  sessionStorage.getItem('lastTweetText') || '';
-
-                // Определяне на съобщението според типа операция
-                let operationMsg, alertClass;
-
-                // НАЙ-ВАЖНАТА ЧАСТ - проверката на операцията
-                // ВАЖНО: Печатаме операцията и типа ѝ, за да сме сигурни, че е това, което очакваме
-                console.log(`Operation value: "${data.operation}"`, typeof data.operation);
-
-                // Стриктна проверка за точно съвпадение на стринговете
-                if (data.operation === "created") {
-                    operationMsg = "Tweet created successfully";
-                    alertClass = "alert-success";
-                    console.log("✅ ПОКАЗВАМЕ СЪОБЩЕНИЕ ЗА НОВ ТУИТ");
-                }
-                else if (data.operation === "existing") {
-                    operationMsg = "Found existing tweet";
-                    alertClass = "alert-warning";
-                    console.log("✅ ПОКАЗВАМЕ СЪОБЩЕНИЕ ЗА СЪЩЕСТВУВАЩ ТУИТ");
-                }
-                else {
-                    // Резервен вариант, ако стойността е неочаквана
-                    console.log("⚠️ НЕОЧАКВАНА СТОЙНОСТ НА ОПЕРАЦИЯТА:", data.operation);
-                    operationMsg = data.message || "Tweet processed";
-                    alertClass = "alert-info";
-                }
-
-                // Създаваме HTML съдържанието
-                statusElement.innerHTML = `
-                    <div class="alert ${alertClass}">
-                        ${operationMsg}! Tweet ID: ${data.tweet_id}, Database ID: ${data.db_id}
-                    </div>
-                    <div class="card p-3 border bg-light">
-                        <p>${tweetText}</p>
-                        <small class="text-muted">ID: ${data.tweet_id}</small>
-                    </div>
-                `;
-
-                // Добавяме в лога на дейностите
-                addActivityLog(operationMsg, data.operation === "created" ? 'success' : 'warning');
-            } else {
-                statusElement.innerHTML = `
-                    <div class="alert alert-danger">
-                        Tweet processing failed: ${data.message}
-                    </div>
-                `;
-                // Добавяме в лога на дейностите
-                addActivityLog(`Tweet processing failed`, 'error');
-            }
-
-            // Reset current processing ID
-            currentProcessingId = null;
-        }
-    });
-
-    eventSource.addEventListener('heartbeat', function(event) {
-        // Heartbeat event - connection is alive
-        console.log("SSE heartbeat received");
-    });
-
-    eventSource.addEventListener('error', function(event) {
-        console.error("SSE connection error:", event);
-
-        // Try to reconnect (browser will usually do this automatically)
-        setTimeout(() => {
-            if (eventSource) {
-                eventSource.close();
-                eventSource = null;
-                connectToSSE();
-            }
-        }, 3000);
-    });
-}
 
 /**
  * Make API request
@@ -168,9 +60,9 @@ async function updateDashboardStats() {
 
             if (!statusData) return;
 
-            // Update UI
-            tweetsElement.textContent = statusData.stored_tweets.toLocaleString();
-            mentionsElement.textContent = statusData.token_mentions.toLocaleString();
+            // Set default values for stats (simplified)
+            if (tweetsElement) tweetsElement.textContent = '0';
+            if (mentionsElement) mentionsElement.textContent = '0';
 
             // Update Kafka status with appropriate color
             const statusBadge = statusData.twitter_connection === 'ok' ?
@@ -261,9 +153,6 @@ async function submitTweet(event) {
             created_at: createdAt
         };
 
-        // Сохраняем текст твита на случай, если форма будет очищена
-        sessionStorage.setItem('lastTweetText', tweetText);
-
         console.log("Sending data to API:", tweetData);
         const result = await apiRequest(API_ENDPOINTS.TWEETS, {
             method: 'POST',
@@ -272,108 +161,19 @@ async function submitTweet(event) {
 
         console.log("API response:", result);
 
-        if (result.status === "processing") {
-            // Store the processing ID to match with SSE events
-            currentProcessingId = result.processing_id;
+        // Show success message (simplified)
+        statusElement.innerHTML = `
+            <div class="alert alert-success">
+                Tweet sent for processing!
+            </div>
+            <div class="card p-3 border bg-light">
+                <p>${tweetText}</p>
+                <small class="text-muted">ID: ${tweetId}</small>
+            </div>
+        `;
 
-            statusElement.innerHTML = `
-                <div class="alert alert-info">
-                    <div class="spinner"></div> Tweet sent to Kafka, waiting for processing...
-                </div>
-                <div class="card p-3 border bg-light">
-                    <p>${tweetText}</p>
-                    <small class="text-muted">ID: ${tweetId}</small>
-                </div>
-            `;
-
-            // Set a timeout in case processing takes too long
-            setTimeout(() => {
-                if (currentProcessingId === result.processing_id) {
-                    // Проверяваме дали туитът е обработен чрез API повикване
-                    apiRequest(`${API_ENDPOINTS.TWEETS}/status/${tweetId}`)
-                        .then(statusResult => {
-                            console.log("Timeout check - received status result:", statusResult);
-
-                            if (statusResult.status === "success") {
-                                // Показваме успешен резултат според типа на операцията
-                                let operationMsg, alertClass;
-
-                                console.log("Timeout - operation type:", statusResult.operation);
-
-                                // Същата важна проверка
-                                if (statusResult.operation === "created") {
-                                    operationMsg = "Tweet created successfully";
-                                    alertClass = "alert-success";
-                                    console.log("✅ TIMEOUT: ПОКАЗВАМЕ СЪОБЩЕНИЕ ЗА НОВ ТУИТ");
-                                }
-                                else if (statusResult.operation === "existing") {
-                                    operationMsg = "Found existing tweet";
-                                    alertClass = "alert-warning";
-                                    console.log("✅ TIMEOUT: ПОКАЗВАМЕ СЪОБЩЕНИЕ ЗА СЪЩЕСТВУВАЩ ТУИТ");
-                                }
-                                else {
-                                    console.log("⚠️ TIMEOUT: НЕОЧАКВАНА СТОЙНОСТ НА ОПЕРАЦИЯТА:", statusResult.operation);
-                                    operationMsg = statusResult.message || "Tweet processed";
-                                    alertClass = "alert-info";
-                                }
-
-                                statusElement.innerHTML = `
-                                    <div class="alert ${alertClass}">
-                                        ${operationMsg}! Tweet ID: ${statusResult.tweet_id}, Database ID: ${statusResult.db_id}
-                                    </div>
-                                    <div class="card p-3 border bg-light">
-                                        <p>${tweetText}</p>
-                                        <small class="text-muted">ID: ${tweetId}</small>
-                                    </div>
-                                `;
-                                addActivityLog(operationMsg, statusResult.operation === "created" ? 'success' : 'warning');
-                            } else {
-                                // Показваме timeout съобщение
-                                statusElement.innerHTML = `
-                                    <div class="alert alert-warning">
-                                        Tweet processing is taking longer than expected. It may still be processed in the background.
-                                    </div>
-                                    <div class="card p-3 border bg-light">
-                                        <p>${tweetText}</p>
-                                        <small class="text-muted">ID: ${tweetId}</small>
-                                    </div>
-                                `;
-                                addActivityLog(`Tweet processing timeout`, 'warning');
-                            }
-
-                            // Reset current processing ID
-                            currentProcessingId = null;
-                        })
-                        .catch(error => {
-                            console.error("Error checking tweet status:", error);
-                            // Показваме timeout съобщение при грешка
-                            statusElement.innerHTML = `
-                                <div class="alert alert-warning">
-                                    Tweet processing is taking longer than expected. It may still be processed in the background.
-                                </div>
-                                <div class="card p-3 border bg-light">
-                                    <p>${tweetText}</p>
-                                    <small class="text-muted">ID: ${tweetId}</small>
-                                </div>
-                            `;
-                            currentProcessingId = null;
-                        });
-                }
-            }, 5000); // Проверка след 5 секунди
-        } else {
-            // В случай, че имаме директен отговор (не чрез SSE)
-            statusElement.innerHTML = `
-                <div class="alert alert-success">
-                    Tweet submitted successfully! ID: ${result.tweet_id}
-                </div>
-                <div class="card p-3 border bg-light">
-                    <p>${tweetText}</p>
-                    <small class="text-muted">ID: ${tweetId}</small>
-                </div>
-            `;
-            // Add to activity log
-            addActivityLog(`Tweet submitted successfully`, 'success');
-        }
+        // Add to activity log
+        addActivityLog(`Tweet sent for processing`, 'success');
 
         // Clear form
         form.reset();
@@ -435,11 +235,8 @@ function addActivityLog(message, type = 'info') {
     }
 }
 
-// Initialize connection when page loads
+// Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize SSE connection
-    connectToSSE();
-
     // Initialize dashboard if on dashboard page
     updateDashboardStats();
 
