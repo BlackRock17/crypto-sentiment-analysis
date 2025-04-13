@@ -1,18 +1,12 @@
 """
 Consumer for processing raw tweets from Kafka.
 """
-import importlib
 import logging
-import asyncio
-
 from typing import Dict, Any
 from src.data_processing.kafka.consumer import KafkaConsumerBase
 from src.data_processing.kafka.config import TOPICS
 from src.services.tweet_service import TweetService
 from src.repositories.tweet_repository import TweetRepository
-from src.api.twitter import notify_tweet_processed
-from fastapi import FastAPI
-from src.main import app as fastapi_app
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -54,42 +48,7 @@ class TweetConsumer(KafkaConsumerBase):
                 if status == "created":
                     logger.info(f"Successfully created new tweet, DB ID: {tweet_id}")
                 else:
-                    logger.info(f"Found existing tweet, DB ID: {tweet_id}")
-
-                logger.info(f"Tweet status from service: {status}")
-
-                processing_id = message.get("processing_id")
-
-                if processing_id:
-                    try:
-                        twitter_module = importlib.import_module('src.api.twitter')
-                        notify_tweet_processed = getattr(twitter_module, 'notify_tweet_processed')
-
-                        main_module = importlib.import_module('src.main')
-                        fastapi_app = getattr(main_module, 'app')
-
-                        # Създаваме съобщение базирано на статуса
-                        if status == "created":
-                            operation_message = "Tweet created successfully"
-                        elif status == "existing":
-                            operation_message = "Tweet already exists in database"
-                        else:
-                            operation_message = "Tweet processed"
-
-                        logger.info(f"Notification message: {operation_message}, operation status: {status}")
-
-                        notification_result = {
-                            "status": "success",
-                            "message": operation_message,
-                            "tweet_id": message.get("tweet_id"),
-                            "db_id": tweet_id,
-                            "operation": status
-                        }
-
-                        loop = asyncio.get_event_loop()
-                        loop.create_task(notify_tweet_processed(fastapi_app, processing_id, notification_result))
-                    except Exception as e:
-                        logger.error(f"Error creating notification task: {e}")
+                    logger.info(f"Found existing tweet, DB ID: {tweet_id}, not adding duplicate")
 
                 return True
             else:
