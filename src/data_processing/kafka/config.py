@@ -12,7 +12,8 @@ KAFKA_BOOTSTRAP_SERVERS = os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'localhost:2
 
 # Topic names - only the ones we need for now
 TOPICS = {
-    "RAW_TWEETS": "raw-tweets"
+    "RAW_TWEETS": "raw-tweets",
+    "MARKET_SENTIMENT": "market-sentiment-analysis"
 }
 
 # Default Kafka producer configuration
