@@ -2,9 +2,11 @@
 Consumer for processing raw tweets from Kafka.
 """
 import logging
+from datetime import datetime
 from typing import Dict, Any
 from src.data_processing.kafka.consumer import KafkaConsumerBase
 from src.data_processing.kafka.config import TOPICS
+from src.data_processing.kafka.producer import send_message
 from src.services.tweet_service import TweetService
 from src.repositories.tweet_repository import TweetRepository
 
@@ -47,6 +49,23 @@ class TweetConsumer(KafkaConsumerBase):
 
                 if status == "created":
                     logger.info(f"Successfully created new tweet, DB ID: {tweet_id}")
+
+                    sentiment_message = {
+                        "tweet_id": tweet_id,
+                        "text": message.get("text", ""),
+                        "created_at": message.get("created_at", ""),
+                        "processed_at": datetime.utcnow().isoformat()
+                    }
+
+                    sentiment_sent = send_message(
+                        topic=TOPICS["MARKET_SENTIMENT"],
+                        message=sentiment_message
+                    )
+
+                    if sentiment_sent:
+                        logger.info(f"Sent tweet ID {tweet_id} to sentiment analysis")
+                    else:
+                        logger.error(f"Failed to send tweet ID {tweet_id} to sentiment analysis")
                 else:
                     logger.info(f"Found existing tweet, DB ID: {tweet_id}, not adding duplicate")
 
