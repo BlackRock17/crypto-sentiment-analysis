@@ -18,16 +18,29 @@ def run_consumer():
     consumer.start()
 
 
+def run_sentiment_consumer():
+    """Run the market sentiment consumer."""
+    from src.data_processing.kafka.consumers.market_sentiment_consumer import MarketSentimentConsumer
+
+    consumer = MarketSentimentConsumer()
+    consumer.start()
+
+
 if __name__ == "__main__":
     # Start API in a separate thread
     api_thread = threading.Thread(target=run_api)
     api_thread.daemon = True
     api_thread.start()
 
+    # Start tweet consumer in a separate thread
+    tweet_thread = threading.Thread(target=run_consumer)
+    tweet_thread.daemon = True
+    tweet_thread.start()
+
     # Give API time to start
     print("Starting API...")
     time.sleep(2)
 
-    # Start consumer in the main thread (easier to debug)
-    print("Starting consumer...")
-    run_consumer()
+    # Start sentiment consumer in the main thread
+    print("Starting sentiment consumer...")
+    run_sentiment_consumer()

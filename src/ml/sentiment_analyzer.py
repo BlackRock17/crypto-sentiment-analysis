@@ -2,9 +2,11 @@
 Module for sentiment analysis of tweets using a pre-trained model.
 """
 import logging
+import numpy as np
 from typing import Dict, Tuple, Optional, List
 import torch
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig
+from scipy.special import softmax
 
 from src.data_processing.models.database import SentimentEnum
 
@@ -14,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 class SentimentAnalyzer:
     """
-    Class for analyzing sentiment in text using a pre-trained DistilBERT model.
+    Class for analyzing sentiment in text using a pre-trained Twitter RoBERTa model.
     """
 
-    def __init__(self, model_name: str = "distilbert-base-uncased-finetuned-sst-2-english"):
+    def __init__(self, model_name: str = "cardiffnlp/twitter-roberta-base-sentiment-latest"):
         """
         Initialize the sentiment analyzer.
 
@@ -25,7 +27,9 @@ class SentimentAnalyzer:
             model_name: Name of the pre-trained model to use
         """
         self.model_name = model_name
-        self.sentiment_pipeline = None
+        self.model = None
+        self.tokenizer = None
+        self.config = None
         self.initialized = False
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -38,17 +42,19 @@ class SentimentAnalyzer:
 
     def _initialize_model(self):
         """
-        Initialize the sentiment pipeline.
+        Initialize the sentiment model and tokenizer.
         """
         logger.info(f"Loading sentiment analysis model: {self.model_name}")
         try:
             # Load pre-trained model for sentiment classification
-            self.sentiment_pipeline = pipeline(
-                "sentiment-analysis",
-                model=self.model_name,
-                tokenizer=self.model_name,
-                device=self.device
-            )
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.config = AutoConfig.from_pretrained(self.model_name)
+            self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
+
+            # Move model to correct device
+            self.model.to(self.device)
+            logger.info(f"Device set to use {self.device}")
+
             self.initialized = True
             logger.info(f"Sentiment model loaded successfully (using {self.device})")
         except Exception as e:
@@ -61,6 +67,23 @@ class SentimentAnalyzer:
         """
         if not self.initialized:
             self._initialize_model()
+
+    def _preprocess_text(self, text):
+        """
+        Preprocess text to handle Twitter-specific elements.
+
+        Args:
+            text: The raw text
+
+        Returns:
+            Preprocessed text
+        """
+        new_text = []
+        for t in text.split(" "):
+            t = '@user' if t.startswith('@') and len(t) > 1 else t
+            t = 'http' if t.startswith('http') else t
+            new_text.append(t)
+        return " ".join(new_text)
 
     def analyze_text(self, text: str) -> Tuple[SentimentEnum, float]:
         """
@@ -80,46 +103,53 @@ class SentimentAnalyzer:
                 logger.warning("Attempted to analyze empty text")
                 return SentimentEnum.NEUTRAL, 0.5
 
-            # Perform prediction with the model
-            result = self.sentiment_pipeline(text)[0]
+            # Preprocess text
+            preprocessed_text = self._preprocess_text(text)
 
-            # Extract label and score
-            label = result['label']
-            score = result['score']
+            # Tokenize and get model prediction
+            encoded_input = self.tokenizer(preprocessed_text, return_tensors='pt').to(self.device)
+            output = self.model(**encoded_input)
+            scores = output[0][0].detach().cpu().numpy()
+            scores = softmax(scores)
 
-            # Map the result to our sentiment system
-            sentiment = self._map_to_sentiment_enum(label, score)
-            confidence = score
+            # Get the highest scoring sentiment
+            ranking = np.argsort(scores)
+            ranking = ranking[::-1]
+
+            top_label_id = ranking[0]
+            top_label = self.config.id2label[top_label_id]
+            confidence = scores[top_label_id]
+
+            # Map the label to our SentimentEnum
+            sentiment = self._map_to_sentiment_enum(top_label)
 
             # Log truncated text to avoid cluttering logs
             truncated_text = text[:50] + ('...' if len(text) > 50 else '')
             logger.info(f"Analyzed text: '{truncated_text}' -> {sentiment.value} ({confidence:.4f})")
 
-            return sentiment, confidence
+            return sentiment, float(confidence)
 
         except Exception as e:
             logger.error(f"Error during sentiment analysis: {e}")
             # Return neutral sentiment with low confidence on error
             return SentimentEnum.NEUTRAL, 0.5
 
-    def _map_to_sentiment_enum(self, label: str, score: float) -> SentimentEnum:
+    def _map_to_sentiment_enum(self, label: str) -> SentimentEnum:
         """
         Map the model output label to our SentimentEnum.
 
         Args:
-            label: The label from the model (POSITIVE, NEGATIVE)
-            score: The confidence score
+            label: The label from the model (Positive, Negative, Neutral)
 
         Returns:
             Corresponding SentimentEnum value
         """
-        # Simple mapping based on the label
-        if label.lower() == 'positive':
+        label_lower = label.lower()
+        if label_lower == 'positive':
             return SentimentEnum.POSITIVE
-        elif label.lower() == 'negative':
+        elif label_lower == 'negative':
             return SentimentEnum.NEGATIVE
-        else:
-            # This should rarely happen with the default model
+        else:  # 'neutral'
             return SentimentEnum.NEUTRAL
 
     def analyze_text_batch(self, texts: List[str]) -> List[Tuple[SentimentEnum, float]]:
@@ -141,33 +171,23 @@ class SentimentAnalyzer:
 
             # Filter out empty texts
             valid_texts = [text for text in texts if text and text.strip()]
+            results = []
 
             if not valid_texts:
                 return [(SentimentEnum.NEUTRAL, 0.5) for _ in texts]
 
-            # Perform prediction for the whole batch of texts
-            results = self.sentiment_pipeline(valid_texts)
-
-            # Process the results
-            processed_results = []
-            result_index = 0
-
+            # Process each text individually
+            # We could batch this, but for simplicity we'll process one at a time
             for text in texts:
                 if not text or not text.strip():
                     # For empty texts, use neutral sentiment
-                    processed_results.append((SentimentEnum.NEUTRAL, 0.5))
+                    results.append((SentimentEnum.NEUTRAL, 0.5))
                 else:
-                    # For valid texts, use the model results
-                    result = results[result_index]
-                    result_index += 1
+                    # For valid texts, analyze sentiment
+                    sentiment, confidence = self.analyze_text(text)
+                    results.append((sentiment, confidence))
 
-                    label = result['label']
-                    score = result['score']
-                    sentiment = self._map_to_sentiment_enum(label, score)
-
-                    processed_results.append((sentiment, score))
-
-            return processed_results
+            return results
 
         except Exception as e:
             logger.error(f"Error during batch sentiment analysis: {e}")
